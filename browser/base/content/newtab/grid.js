@@ -42,6 +42,9 @@ let gGrid = {
   // Returns whether the page has finished loading yet.
   get isDocumentLoaded() { return document.readyState == "complete"; },
 
+  // The currently pinned links.
+  _pinnedLinks: [],
+
   /**
    * Initializes the grid.
    * @param aSelector The query selector of the grid.
@@ -49,19 +52,10 @@ let gGrid = {
   init: function Grid_init() {
     this._node = document.getElementById("newtab-grid");
     this._createSiteFragment();
+    addEventListener("resize", this);
 
-    gLinks.populateCache(() => {
-      this.refresh();
-      this._ready = true;
-
-      // If fetching links took longer than loading the page itself then
-      // we need to resize the grid as that was blocked until now.
-      // We also want to resize now if the page was already loaded when
-      // initializing the grid (the user toggled the page).
-      this._resizeGrid();
-
-      addEventListener("resize", this);
-    });
+    sendAsyncMessage("NewTab:InitializeGrid");
+    addMessageListener("NewTab:InitializeLinks", this.refresh.bind(this));
 
     // Resize the grid as soon as the page loads.
     if (!this.isDocumentLoaded) {
@@ -73,12 +67,13 @@ let gGrid = {
    * Creates a new site in the grid.
    * @param aLink The new site's link.
    * @param aCell The cell that will contain the new site.
+   * @param aEnhanced Does the site have an enhanced link.
    * @return The newly created site.
    */
-  createSite: function Grid_createSite(aLink, aCell) {
+  createSite: function Grid_createSite(aLink, aCell, aEnhanced) {
     let node = aCell.node;
     node.appendChild(this._siteFragment.cloneNode(true));
-    return new Site(node.firstElementChild, aLink);
+    return new Site(node.firstElementChild, aLink, aEnhanced);
   },
 
   /**
@@ -110,33 +105,51 @@ let gGrid = {
   /**
    * Renders the grid, including cells and sites.
    */
-  refresh() {
+  refresh(message) {
+    let links = message.data.links;
+    let enhancedLinks = message.data.enhancedLinks;
     let cell = document.createElementNS(HTML_NAMESPACE, "div");
     cell.classList.add("newtab-cell");
 
     // Creates all the cells up to the maximum
     let fragment = document.createDocumentFragment();
-    for (let i = 0; i < gGridPrefs.gridColumns * gGridPrefs.gridRows; i++) {
+    let rows = Math.max(1, Services.prefs.getIntPref("browser.newtabpage.rows"));
+    let columns = Math.max(1, Services.prefs.getIntPref("browser.newtabpage.columns"));
+    for (let i = 0; i < columns * rows; i++) {
       fragment.appendChild(cell.cloneNode(true));
     }
 
     // Create cells.
     let cells = [new Cell(this, cell) for (cell of fragment.childNodes)];
 
-    // Fetch links.
-    let links = gLinks.getLinks();
-
     // Create sites.
     let numLinks = Math.min(links.length, cells.length);
     for (let i = 0; i < numLinks; i++) {
-      if (links[i]) {
-        this.createSite(links[i], cells[i]);
+     if (links[i]) {
+        // If the link is enhanced, and enhanced is turned on, then use the enhanced link.
+        if (enhancedLinks[i] && Services.prefs.getBoolPref("browser.newtabpage.enhanced")) {
+          this.createSite(enhancedLinks[i], cells[i], true);
+        } else {
+          this.createSite(links[i], cells[i], false);
+        }
       }
     }
 
     this._cells = cells;
     this._node.innerHTML = "";
     this._node.appendChild(fragment);
+    this._ready = true;
+
+    this._pinnedLinks = message.data.pinnedLinks;
+
+    // If fetching links took longer than loading the page itself then
+    // we need to resize the grid as that was blocked until now.
+    // We also want to resize now if the page was already loaded when
+    // initializing the grid (the user toggled the page).
+    this._resizeGrid();
+
+    let event = new CustomEvent("AboutNewTabUpdated", {bubbles: true});
+    document.dispatchEvent(event);
   },
 
   /**
@@ -144,7 +157,7 @@ let gGrid = {
    * @param rows Number of rows defaulting to the max
    */
   _computeHeight: function Grid_computeHeight(aRows) {
-    let {gridRows} = gGridPrefs;
+    let gridRows = Math.max(1, Services.prefs.getIntPref("browser.newtabpage.rows"));
     aRows = aRows === undefined ? gridRows : Math.min(gridRows, aRows);
     return aRows * this._cellHeight + GRID_BOTTOM_EXTRA;
   },
@@ -195,9 +208,10 @@ let gGrid = {
         parseFloat(getComputedStyle(refCell).marginBottom);
       this._cellWidth = refCell.offsetWidth + this._cellMargin;
     }
+    let columns = Math.max(1, Services.prefs.getIntPref("browser.newtabpage.columns"));
     this._node.style.height = this._computeHeight() + "px";
     this._node.style.maxHeight = this._node.style.height;
-    this._node.style.maxWidth = gGridPrefs.gridColumns * this._cellWidth +
+    this._node.style.maxWidth = columns * this._cellWidth +
                                 GRID_WIDTH_EXTRA + "px";
   }
 };

@@ -67,14 +67,17 @@ function runTests() {
   // Test with enhanced = true
   yield addNewTabPageTab();
   yield customizeNewTabPage("enhanced"); // Toggle enhanced on
+  yield whenPagesUpdated();
   ({type, enhanced, title, suggested} = getData(0));
   is(type, "organic", "directory link is organic");
   isnot(enhanced, "", "directory link has enhanced image");
   is(title, "title1");
   is(suggested, "", "There is no suggested explanation");
 
-  ({type, enhanced, title, suggested} = getData(1));
-  is(type, "enhanced", "history link is enhanced");
+  ({enhanced, title, suggested} = getData(1));
+  let enhancedLink = getGrid().sites[1]._enhancedLink;
+  is(enhancedLink, true, "history link is an enhanced link");
+  is(type, "organic", "history link is organic");
   isnot(enhanced, "", "history link has enhanced image");
   is(title, "title");
   is(suggested, "", "There is no suggested explanation");
@@ -83,9 +86,12 @@ function runTests() {
 
   // Test with a pinned link
   setPinnedLinks("-1");
+  yield whenPagesUpdated();
   yield addNewTabPageTab();
   ({type, enhanced, title, suggested} = getData(0));
-  is(type, "enhanced", "pinned history link is enhanced");
+  enhancedLink = getGrid().sites[0]._enhancedLink;
+  is(enhancedLink, true, "pinned history link is an enhanced link");
+  is(type, "organic", "history link is organic");
   isnot(enhanced, "", "pinned history link has enhanced image");
   is(title, "title");
   is(suggested, "", "There is no suggested explanation");
@@ -101,6 +107,7 @@ function runTests() {
   // Test pinned link with enhanced = false
   yield addNewTabPageTab();
   yield customizeNewTabPage("enhanced"); // Toggle enhanced off
+  yield whenPagesUpdated();
   ({type, enhanced, title, suggested} = getData(0));
   isnot(type, "enhanced", "history link is not enhanced");
   is(enhanced, "", "history link has no enhanced image");
@@ -133,6 +140,7 @@ function runTests() {
   // Test with enhanced = true
   yield addNewTabPageTab();
   yield customizeNewTabPage("enhanced");
+  yield whenPagesUpdated();
 
   // Suggested link was not enhanced by directory link with same domain
   ({type, enhanced, title, suggested} = getData(0));
@@ -143,7 +151,9 @@ function runTests() {
 
   // Enhanced history link shows up second
   ({type, enhanced, title, suggested} = getData(1));
-  is(type, "enhanced", "pinned history link is enhanced");
+  enhancedLink = getGrid().sites[1]._enhancedLink;
+  is(enhancedLink, true, "pinned history link is an enhanced link");
+  is(type, "organic", "history link is organic");
   isnot(enhanced, "", "pinned history link has enhanced image");
   is(title, "title");
   is(suggested, "", "There is no suggested explanation");

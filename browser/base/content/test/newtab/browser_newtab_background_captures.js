@@ -28,13 +28,13 @@ function runTests() {
 
   // Add a top site.
   yield setLinks("-1");
-
   // We need a handle to a hidden, pre-loaded newtab so we can verify that it
   // doesn't allow background captures. Ensure we have a preloaded browser.
   gBrowser._createPreloadBrowser();
 
-  // Wait for the preloaded browser to load.
+  // Wait for the preloaded browser to load and for the page to update.
   yield waitForBrowserLoad(gBrowser._preloadedBrowser);
+  yield whenPagesUpdated();
 
   // We're now ready to use the preloaded browser.
   BrowserOpenTab();
@@ -50,14 +50,17 @@ function runTests() {
       return;
     Services.obs.removeObserver(onCreate, "page-thumbnail:create");
     ok(true, "thumbnail created after preloaded tab was shown");
+    whenPagesUpdated(cleanup);
 
-    // Test finished!
-    Services.prefs.setBoolPref(CAPTURE_PREF, originalDisabledState);
-    gBrowser.removeTab(tab);
-    file.remove(false);
-    TestRunner.next();
   }, "page-thumbnail:create", false);
 
   info("Waiting for thumbnail capture");
   yield true;
+
+  function cleanup() {
+    // Test finished!
+    Services.prefs.setBoolPref(CAPTURE_PREF, originalDisabledState);
+    file.remove(false);
+    TestRunner.next();
+  }
 }

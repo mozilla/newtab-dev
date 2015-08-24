@@ -26,16 +26,16 @@ function runTests() {
   setPinnedLinks("");
 
   yield addNewTabPageTab();
+  yield whenPagesUpdated();
   checkGrid("0,1,2,3,4,5,6,7,8");
 
-  yield simulateDrop(0, 0);
-  checkGrid("0,1,2,3,4,5,6,7,8");
+   yield simulateDrop(0, 0);
+   checkGrid("0,1,2,3,4,5,6,7,8");
 
   // ensure that pinned pages aren't moved if that's not necessary
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",1,2");
-
-  yield addNewTabPageTab();
+  yield whenPagesUpdated();
   checkGrid("0,1p,2p,3,4,5,6,7,8");
 
   yield simulateDrop(0, 3);
@@ -45,8 +45,7 @@ function runTests() {
   // moved around, neighboring pinned are affected as well
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("0,1");
-
-  yield addNewTabPageTab();
+  yield whenPagesUpdated();
   checkGrid("0p,1p,2,3,4,5,6,7,8");
 
   yield simulateDrop(2, 0);
@@ -56,9 +55,9 @@ function runTests() {
   // pinned ones left on the grid)
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",,,,,,,7,8");
-
-  yield addNewTabPageTab();
+  yield whenPagesUpdated();
   checkGrid("0,1,2,3,4,5,6,7p,8p");
+  yield addNewTabPageTab();
 
   yield simulateDrop(2, 5);
   checkGrid("0,1,3,4,5,2p,6,7p,8p");
@@ -66,10 +65,11 @@ function runTests() {
   // make sure that pinned sites are re-positioned correctly
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("0,1,2,,,5");
-
-  yield addNewTabPageTab();
+  yield whenPagesUpdated();
   checkGrid("0p,1p,2p,3,4,5p,6,7,8");
+  yield addNewTabPageTab();
 
   yield simulateDrop(0, 4);
+  yield whenPagesUpdated();
   checkGrid("3,1p,2p,4,0p,5p,6,7,8");
 }
