@@ -7,6 +7,12 @@
 /**
  * This singleton implements site dragging functionality.
  */
+
+XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
+  let uri = Services.io.newURI("about:newtab", null, null);
+  return Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
+});
+
 let gDrag = {
   /**
    * The site offset to the drag start point.
@@ -113,11 +119,22 @@ let gDrag = {
     // Can happen when dragging places folders.
     if (!link || !link.url) {
       return false;
+
     }
+
+    let flags = Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL |
+                Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
 
     // Check that we're not accepting URLs which would inherit the caller's
     // principal (such as javascript: or data:).
-    return gLinkChecker.checkLoadURI(link.url);
+    try {
+      Services.scriptSecurityManager.
+        checkLoadURIStrWithPrincipal(gPrincipal, link.url, flags);
+      return true;
+    } catch (e) {
+      // Attempting to drag a wierd URL - don't allow the drag to happen.
+      return false;
+    }
   },
 
   /**

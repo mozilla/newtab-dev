@@ -5,6 +5,9 @@ const INTRO_PREF = "browser.newtabpage.introShown";
 const PRELOAD_PREF = "browser.newtab.preload";
 
 function runTests() {
+  yield addNewTabPageTab();
+  yield whenPagesUpdated();
+
   let origIntro = Services.prefs.getBoolPref(INTRO_PREF);
   let origPreload = Services.prefs.getBoolPref(PRELOAD_PREF);
   registerCleanupFunction(_ => {
@@ -41,6 +44,6 @@ function runTests() {
 
   let gotit = getContentDocument().getElementById("newtab-intro-button");
   gotit.click();
-
+  whenPagesUpdated();
   is(intro.style.opacity, 0, "intro exited");
 }

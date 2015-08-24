@@ -115,7 +115,7 @@ let gDropPreview = {
 
     // We need a pinned range only when dropping on a pinned site.
     if (aCell.containsPinnedSite()) {
-      let links = gPinnedLinks.links;
+      let links = gGrid._pinnedLinks;
 
       // Find all previous siblings of the drop target that are pinned as well.
       while (range.start && links[range.start - 1])
@@ -127,7 +127,6 @@ let gDropPreview = {
       while (range.end < maxEnd && links[range.end + 1])
         range.end++;
     }
-
     return range;
   },
 

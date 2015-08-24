@@ -76,7 +76,6 @@ add_task(function*() {
       onManyLinksChanged: () => {
         DirectoryLinksProvider.removeObserver(observer);
         NewTabUtils.links.populateCache(() => {
-          NewTabUtils.allPages.update();
           deferred.resolve();
         }, true);
       }
