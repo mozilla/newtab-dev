@@ -38,6 +38,7 @@ function runTests() {
 
   yield setLinks("0,1,2,3,4,5,6,7,8,9");
   setPinnedLinks("");
+  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   // load another newtab since the first may not get suggested tile
@@ -61,6 +62,7 @@ function runTests() {
   EventUtils.synthesizeMouseAtCenter(pinButton, {}, getContentWindow());
   // wait for whenPagesUpdated
   yield null;
+  yield whenPagesUpdated();
 
   // tile should be pinned and turned into history tile
   is(NewTabUtils.pinnedLinks.isPinned({url: "http://example.com/hardlanding/page.html"}), true, "suggested tile is pinned");

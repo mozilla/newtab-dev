@@ -15,6 +15,7 @@ function runTests() {
   sanitizeHistory();
   yield addFakeVisits();
   yield addNewTabPageTab();
+  yield customizeNewTabPage("enhanced");
 
   is(getCell(0).site.url, URL, "first site is our fake site");
 
@@ -42,7 +43,7 @@ function addFakeVisits() {
     handleResult: function () {},
     handleCompletion: function () {
       NewTabUtils.links.populateCache(function () {
-        NewTabUtils.allPages.update();
+        AboutNewTab.updateTest(gWindow.gBrowser);
         TestRunner.next();
       }, true);
     }
