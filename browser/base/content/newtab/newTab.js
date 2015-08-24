@@ -9,10 +9,6 @@ let Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PageThumbs.jsm");
-Cu.import("resource://gre/modules/BackgroundPageThumbs.jsm");
-Cu.import("resource:///modules/DirectoryLinksProvider.jsm");
-Cu.import("resource://gre/modules/NewTabUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Rect",
   "resource://gre/modules/Geometry.jsm");
@@ -21,14 +17,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
   "resource://gre/modules/UpdateChannel.jsm");
 
-let {
-  links: gLinks,
-  allPages: gAllPages,
-  linkChecker: gLinkChecker,
-  pinnedLinks: gPinnedLinks,
-  blockedLinks: gBlockedLinks,
-  gridPrefs: gGridPrefs
-} = NewTabUtils;
 
 XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
   return Services.strings.
