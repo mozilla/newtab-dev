@@ -28,6 +28,7 @@ let gUndoDialog = {
     this._undoButton = document.getElementById("newtab-undo-button");
     this._undoCloseButton = document.getElementById("newtab-undo-close-button");
     this._undoRestoreButton = document.getElementById("newtab-undo-restore-button");
+    addMessageListener("NewTab:Restore", this._restore.bind(this));
   },
 
   /**
@@ -92,25 +93,24 @@ let gUndoDialog = {
       return;
 
     let {index, wasPinned, blockedLink} = this._undoData;
-    gBlockedLinks.unblock(blockedLink);
-
-    if (wasPinned) {
-      gPinnedLinks.pin(blockedLink, index);
-    }
-
-    gUpdater.updateGrid();
-    this.hide();
+    sendAsyncMessage("NewTab:UnblockLink", {link: blockedLink, wasPinned, index});
+    this._restore();
   },
 
   /**
    * Undo all blocked sites.
    */
   _undoAll: function UndoDialog_undoAll() {
-    NewTabUtils.undoAll(function() {
-      gUpdater.updateGrid();
-      this.hide();
-    }.bind(this));
-  }
+    sendAsyncMessage("NewTab:UndoAll");
+  },
+
+  /**
+   * Restore the state of the page and hide the undo dialog.
+   */
+  _restore: function UndoDialog_restore() {
+    gUpdater.sendUpdate();
+    this.hide();
+  },
 };
 
 gUndoDialog.init();

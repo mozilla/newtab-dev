@@ -11,6 +11,7 @@ function runTests() {
   setPinnedLinks(",99");
 
   yield addNewTabPageTab();
+  yield customizeNewTabPage("enhanced"); // Toggle enhanced on - remove when testing all
   checkGrid("0,99p,1,2,3,4,5,6,7");
 
   // Unpin the second cell's site.
@@ -19,6 +20,6 @@ function runTests() {
 
   // Clear the pinned cache to force NewTabUtils to read the pref again.
   NewTabUtils.pinnedLinks.resetCache();
-  NewTabUtils.allPages.update();
+  AboutNewTab.updateTest(gWindow.gBrowser);
   checkGrid("0,1,2,3,4,5,6,7,8");
 }
