@@ -674,7 +674,7 @@ let DirectoryLinksProvider = {
     // Check if the suggested tile was shown
     if (action == "view") {
       sites.slice(0, triggeringSiteIndex + 1).filter(s => s).forEach(site => {
-        let {targetedSite, url} = site.link;
+        let {targetedSite, url} = site;
         if (targetedSite) {
           this._addFrequencyCapView(url);
         }
@@ -686,7 +686,7 @@ let DirectoryLinksProvider = {
     // unpin - the tile was pinned before, should not matter
     else {
       // suggested tile has targetedSite, or frecent_sites if it was pinned
-      let {frecent_sites, targetedSite, url} = sites[triggeringSiteIndex].link;
+      let {frecent_sites, targetedSite, url} = sites[triggeringSiteIndex];
       if (frecent_sites || targetedSite) {
         // skip past_impressions for "unpin" to avoid chance of tracking
         if (this._frequencyCaps[url] && action != "unpin") {
@@ -720,7 +720,7 @@ let DirectoryLinksProvider = {
         // Only add data for non-empty tiles
         if (site) {
           // Remember which tiles data triggered the action
-          let {link} = site;
+          let link = site;
           let tilesIndex = tiles.length;
           if (triggeringSiteIndex == pos) {
             actionIndex = tilesIndex;
@@ -730,7 +730,7 @@ let DirectoryLinksProvider = {
           let id = link.directoryId;
           tiles.push({
             id: id || site.enhancedId,
-            pin: site.isPinned() ? 1 : undefined,
+            pin: link.pinState ? 1 : undefined,
             pos: pos != tilesIndex ? pos : undefined,
             past_impressions: pos == triggeringSiteIndex ? pastImpressions : undefined,
             score: Math.round(link.frecency / PING_SCORE_DIVISOR) || undefined,
