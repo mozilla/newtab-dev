@@ -1,0 +1,28 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+html {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font: message-box;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  background-color: #F9F9F9;
+  position: relative;
+  -moz-box-flex: 1;
+  -moz-user-focus: normal;
+  -moz-box-orient: vertical;
+}
+
+#remotedoc {
+  width: 100%;
+  height: 100%;
+  border: none;
+  position: absolute;
+}
