@@ -7,25 +7,14 @@
 <!DOCTYPE html [
   <!ENTITY % newTabDTD SYSTEM "chrome://browser/locale/newTab.dtd">
   %newTabDTD;
-  <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
-  %browserDTD;
-  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-  %globalDTD;
 ]>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>&newtab.pageTitle;</title>
-
-  <link rel="stylesheet" type="text/css" media="all" href="chrome://global/skin/" />
-  <link rel="stylesheet" type="text/css" media="all" href="chrome://browser/content/contentSearchUI.css" />
-  <link rel="stylesheet" type="text/css" media="all" href="chrome://browser/content/newtab/newTab.css" />
-  <link rel="stylesheet" type="text/css" media="all" href="chrome://browser/skin/newtab/newTab.css" />
+  <link rel="stylesheet" href="chrome://browser/content/newtab/newTab.css"/>
 </head>
-
-<body dir="&locale.dir;">
-  <iframe id="meep" src="file:///Users/msamuel/Projects/mozilla-source/remote-newtab/newTab.html"></iframe>
+<body>
+  <iframe id="remotedoc" src="https://mozilla.github.io/remote-newtab/"/>
 </body>
-<script type="text/javascript;version=1.8" src="chrome://browser/content/contentSearchUI.js"/>
-<script type="text/javascript;version=1.8" src="chrome://browser/content/newtab/newTab.js"/>
 </html>
