@@ -86,7 +86,7 @@ let AboutNewTab = {
    */
   initializeGrid: function(message) {
     NewTabUtils.links.populateCache(() => {
-      message.target.sendAsyncMessage("NewTab:InitializeGrid:UpdateLinks", {
+      message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: NewTabUtils.links.getLinks(),
         pinnedLinks: NewTabUtils.pinnedLinks.links,
         enhancedLinks: this.getEnhancedLinks(),
