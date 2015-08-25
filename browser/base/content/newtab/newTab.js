@@ -91,6 +91,12 @@ function getInitialState() {
   iframe.postMessage({name: "NewTab:State", data: state}, "*");
 }
 
+const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
+const PREF_NEWTAB_ENHANCED = "browser.newtabpage.enhanced";
+const PREF_NEWTAB_ROWS = "browser.newtabpage.rows";
+const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
+const PREF_INTRO_SHOWN = "browser.newtabpage.introShown";
+
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const XUL_NAMESPACE = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
