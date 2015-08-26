@@ -23,6 +23,8 @@ XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
     createBundle("chrome://browser/locale/newTab.properties");
 });
 
+let iframe;
+
 function newTabString(name, args) {
   let stringName = "newtab." + name;
   if (!args) {
@@ -35,6 +37,81 @@ function inPrivateBrowsingMode() {
   return PrivateBrowsingUtils.isContentWindowPrivate(window);
 }
 
+function handleCommand(command, data) {
+  let commandHandled = true;
+  switch(command) {
+    case "NewTab:UpdateTelemetryProbe":
+      Services.telemetry.getHistogramById(data.probe).add(data.value);
+      break;
+    case "NewTab:Register":
+      registerEvent(data.type);
+      break;
+    case "NewTab:GetInitialState":
+      getInitialState();
+      break;
+    default:
+      commandHandled = false;
+  }
+  return commandHandled;
+}
+
+function initRemotePage() {
+  // Messages that the iframe sends the browser will be passed onto
+  // the privileged parent process
+  let iframe = getIframe();
+  let loaded = () => {
+    iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
+      let handled = handleCommand(e.detail.command, e.detail.data);
+      if (!handled) {
+        sendAsyncMessage(e.detail.command, e.detail.data);
+      }
+    });
+    registerEvent("NewTab:Observe");
+    iframe.contentDocument.dispatchEvent(new CustomEvent("NewTabCommandReady"));
+  };
+
+  if (iframe.contentDocument.readyState === "complete") {
+     loaded();
+     return;
+  }
+  iframe.addEventListener("load", loaded);
+}
+
+function registerEvent(event) {
+  // Messages that the privileged parent process sends will be passed
+  // onto the iframe
+  addMessageListener(event, (message) => {
+    let iframe = getIframe();
+    iframe.postMessage(message, "*");
+  });
+}
+
+function getInitialState() {
+  let state = {
+    enabled: Services.prefs.getBoolPref(PREF_NEWTAB_ENABLED),
+    enhanced: Services.prefs.getBoolPref(PREF_NEWTAB_ENHANCED),
+    rows: Services.prefs.getIntPref(PREF_NEWTAB_ROWS),
+    columns: Services.prefs.getIntPref(PREF_NEWTAB_COLUMNS),
+    introShown: Services.prefs.getBoolPref(PREF_INTRO_SHOWN),
+    privateBrowsingMode: PrivateBrowsingUtils.isContentWindowPrivate(window)
+  }
+  let iframe = getIframe();
+  iframe.postMessage({name: "NewTab:State", data: state}, "*");
+}
+
+function getIframe(){
+  if(!iframe){
+    iframe = document.getElementById("remotedoc");
+  }
+  return iframe;
+}
+
+const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
+const PREF_NEWTAB_ENHANCED = "browser.newtabpage.enhanced";
+const PREF_NEWTAB_ROWS = "browser.newtabpage.rows";
+const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
+const PREF_INTRO_SHOWN = "browser.newtabpage.introShown";
+
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const XUL_NAMESPACE = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -42,21 +119,5 @@ const TILES_EXPLAIN_LINK = "https://support.mozilla.org/kb/how-do-tiles-work-fir
 const TILES_INTRO_LINK = "https://www.mozilla.org/firefox/tiles/";
 const TILES_PRIVACY_LINK = "https://www.mozilla.org/privacy/";
 
-#include transformations.js
-#include page.js
-#include grid.js
-#include cells.js
-#include sites.js
-#include drag.js
-#include dragDataHelper.js
-#include drop.js
-#include dropTargetShim.js
-#include dropPreview.js
-#include updater.js
-#include undo.js
-#include search.js
-#include customize.js
-#include intro.js
-
 // Everything is loaded. Initialize the New Tab Page.
-gPage.init();
+initRemotePage();
