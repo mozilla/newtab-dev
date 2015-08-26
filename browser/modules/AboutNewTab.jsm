@@ -12,6 +12,7 @@ this.EXPORTED_SYMBOLS = [ "AboutNewTab" ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/DirectoryLinksProvider.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePages",
   "resource://gre/modules/RemotePageManager.jsm");
@@ -47,6 +48,8 @@ let AboutNewTab = {
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.pageThumbs.bind(this));
     this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
+    this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
+    this.pageListener.addMessageListener("NewTab:RecordSiteClicked", this.recordSiteClicked.bind(this));
 
     this._addObservers();
   },
@@ -65,8 +68,12 @@ let AboutNewTab = {
    *          history tiles feature.
    */
   customize: function(message) {
-    NewTabUtils.allPages.enabled = message.data.enabled;
-    NewTabUtils.allPages.enhanced = message.data.enhanced;
+    if (message.data.enabled !== undefined) {
+      NewTabUtils.allPages.enabled = message.data.enabled;
+    }
+    if (message.data.enhanced !== undefined) {
+      NewTabUtils.allPages.enhanced = message.data.enhanced;
+    }
   },
 
   /**
@@ -348,6 +355,30 @@ let AboutNewTab = {
   },
 
   /**
+    * Speculatively opens a connection to the given site.
+    */
+  speculativeConnect: function (message) {
+    let sc = Services.io.QueryInterface(Ci.nsISpeculativeConnect);
+    let uri = Services.io.newURI(message.data.url, null, null);
+    sc.speculativeConnect(uri, null);
+  },
+
+  /**
+   * Record interaction with site using telemetry.
+   */
+  recordSiteClicked: function(message) {
+    let index = Number.parseInt(message.data.index);
+    if (Services.prefs.prefHasUserValue("browser.newtabpage.rows") ||
+        Services.prefs.prefHasUserValue("browser.newtabpage.columns") ||
+        index > 8) {
+      // We only want to get indices for the default configuration, everything
+      // else goes in the same bucket.
+      index = 9;
+    }
+    Services.telemetry.getHistogramById("NEWTAB_PAGE_SITE_CLICKED").add(message.data.index);
+  },
+
+  /**
    * Update the preferences to indicate that the intro has been shown, and we
    * do not need to show the intro again.
    */
@@ -370,8 +401,9 @@ let AboutNewTab = {
    *          The tile index from which the action came from.
    */
   reportSitesAction: function(message) {
-    let sites = NewTabUtils.links.getLinks().slice(0, message.data.length);
-    DirectoryLinksProvider.reportSitesAction(sites, message.data.action, message.data.index);
+    // Convert sites to objects.
+    let parsedSites = message.data.sites.map(site => JSON.parse(site));
+    DirectoryLinksProvider.reportSitesAction(parsedSites, message.data.action, message.data.index);
   },
 
   /**
@@ -394,16 +426,19 @@ let AboutNewTab = {
    * may have changed, then proceed with the page update.
    */
   observe: function(aSubject, aTopic, aData) {
+    let extraData;
     let refreshPage = false;
     if (aTopic == "nsPref:changed") {
       switch (aData) {
         case "browser.newtabpage.enabled":
           NewTabUtils.allPages._enabled = null;
           refreshPage = true;
+          extraData = Services.prefs.getBoolPref("browser.newtabpage.enabled");
           break;
         case "browser.newtabpage.enhanced":
           NewTabUtils.allPages._enhanced = null;
           refreshPage = true;
+          extraData = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
           break;
         case "browser.newtabpage.pinned":
           NewTabUtils.pinnedLinks.resetCache();
@@ -423,7 +458,14 @@ let AboutNewTab = {
       });
     }
 
-    this.pageListener.sendAsyncMessage("NewTab:Observe", {topic: aTopic, data: aData});
+    if (extraData !== undefined || aTopic === "page-thumbnail:create") {
+      if (aTopic !== "page-thumbnail:create") {
+        // Change the topic for enhanced and enabled observers.
+        aTopic = aData;
+      }
+      this.pageListener.sendAsyncMessage("NewTab:Observe", {topic: aTopic, data: extraData});
+    }
+
     this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
       links: NewTabUtils.links.getLinks(),
       pinnedLinks: NewTabUtils.pinnedLinks.links,
