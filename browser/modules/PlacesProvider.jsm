@@ -2,17 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global Services, BinarySearch, PlacesUtils, gPrincipal */
+/* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal */
+/* exported PlacesProvider */
 
 "use strict";
 
 this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
 const Ci = Components.interfaces;
-const Cc = Components.classes;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "BinarySearch",
   "resource://gre/modules/BinarySearch.jsm");
@@ -154,12 +155,12 @@ let PlacesProvider = {
         }
       },
 
-      handleError: function(aError) {
+      handleError: function(aError) { // jshint ignore:line
         // Should we somehow handle this error?
         aCallback([]);
       },
 
-      handleCompletion: function(aReason) {
+      handleCompletion: function(aReason) { // jshint ignore:line
         // The Places query breaks ties in frecency by place ID descending, but
         // that's different from how Links.compareLinks breaks ties, because
         // compareLinks doesn't have access to place IDs.  It's very important
@@ -216,7 +217,7 @@ let PlacesProvider = {
   /**
    * Called by the history service.
    */
-  onDeleteURI: function PlacesProviderOnDeleteURI(aURI, aGUID, aReason) {
+  onDeleteURI: function PlacesProviderOnDeleteURI(aURI) {
     // let observers remove sensetive data associated with deleted visit
     this._callObservers("onDeleteURI", {
       url: aURI.spec,
@@ -231,7 +232,7 @@ let PlacesProvider = {
    * Called by the history service.
    */
   onFrecencyChanged: function PlacesProviderOnFrecencyChanged(aURI,
-                         aNewFrecency, aGUID, aHidden, aLastVisitDate) {
+                         aNewFrecency, aGUID, aHidden, aLastVisitDate) { // jshint ignore:line
     // The implementation of the query in getLinks excludes hidden and
     // unvisited pages, so it's important to exclude them here, too.
     if (!aHidden && aLastVisitDate) {
@@ -254,8 +255,7 @@ let PlacesProvider = {
   /**
    * Called by the history service.
    */
-  onTitleChanged: function PlacesProviderOnTitleChanged(aURI, aNewTitle,
-                      aGUID) {
+  onTitleChanged: function PlacesProviderOnTitleChanged(aURI, aNewTitle) {
     this._callObservers("onLinkChanged", {
       url: aURI.spec,
       title: aNewTitle
