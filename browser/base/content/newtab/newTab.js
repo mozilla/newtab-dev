@@ -23,6 +23,8 @@ XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
     createBundle("chrome://browser/locale/newTab.properties");
 });
 
+let iframe;
+
 function newTabString(name, args) {
   let stringName = "newtab." + name;
   if (!args) {
@@ -56,7 +58,7 @@ function handleCommand(command, data) {
 function initRemotePage() {
   // Messages that the iframe sends the browser will be passed onto
   // the privileged parent process
-  let iframe = document.getElementById("meep");
+  let iframe = getIframe();
   iframe.addEventListener("load", (e) => {
     iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
       let handled = handleCommand(e.detail.command, e.detail.data);
@@ -73,7 +75,7 @@ function registerEvent(event) {
   // Messages that the privileged parent process sends will be passed
   // onto the iframe
   addMessageListener(event, (message) => {
-    let iframe = document.getElementById("meep").contentWindow;
+    let iframe = getIframe();
     iframe.postMessage(message, "*");
   });
 }
@@ -87,8 +89,15 @@ function getInitialState() {
     introShown: Services.prefs.getBoolPref(PREF_INTRO_SHOWN),
     privateBrowsingMode: PrivateBrowsingUtils.isContentWindowPrivate(window)
   }
-  let iframe = document.getElementById("meep").contentWindow;
+  let iframe = getIframe();
   iframe.postMessage({name: "NewTab:State", data: state}, "*");
+}
+
+function getIframe(){
+  if(!iframe){
+    iframe = document.getElementById("remotedoc");
+  }
+  return iframe;
 }
 
 const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
