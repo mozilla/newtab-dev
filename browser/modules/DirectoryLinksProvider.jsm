@@ -720,21 +720,20 @@ let DirectoryLinksProvider = {
         // Only add data for non-empty tiles
         if (site) {
           // Remember which tiles data triggered the action
-          let link = site;
           let tilesIndex = tiles.length;
           if (triggeringSiteIndex == pos) {
             actionIndex = tilesIndex;
           }
 
           // Make the payload in a way so keys can be excluded when stringified
-          let id = link.directoryId;
+          let id = site.directoryId;
           tiles.push({
             id: id || site.enhancedId,
-            pin: link.pinState ? 1 : undefined,
+            pin: site.pinState ? 1 : undefined,
             pos: pos != tilesIndex ? pos : undefined,
             past_impressions: pos == triggeringSiteIndex ? pastImpressions : undefined,
-            score: Math.round(link.frecency / PING_SCORE_DIVISOR) || undefined,
-            url: site.enhancedId && "",
+            score: Math.round(site.frecency / PING_SCORE_DIVISOR) || undefined,
+            url: site.enhancedId || "",
           });
         }
         return tiles;
