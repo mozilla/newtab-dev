@@ -59,16 +59,22 @@ function initRemotePage() {
   // Messages that the iframe sends the browser will be passed onto
   // the privileged parent process
   let iframe = getIframe();
-  iframe.addEventListener("load", (e) => {
+  let loaded = () => {
     iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
       let handled = handleCommand(e.detail.command, e.detail.data);
       if (!handled) {
         sendAsyncMessage(e.detail.command, e.detail.data);
       }
-    }, false);
+    });
     registerEvent("NewTab:Observe");
     iframe.contentDocument.dispatchEvent(new CustomEvent("NewTabCommandReady"));
-  });
+  };
+
+  if (iframe.contentDocument.readyState === "complete") {
+     loaded();
+     return;
+  }
+  iframe.addEventListener("load", loaded);
 }
 
 function registerEvent(event) {
