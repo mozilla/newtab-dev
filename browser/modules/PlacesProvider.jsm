@@ -6,7 +6,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["PlacesProvider"]; // jshint ignore:line
+this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
