@@ -20,7 +20,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "BinarySearch",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
+XPCOMUtils.defineLazyGetter(this, "gPrincipal", function() {
   let uri = Services.io.newURI("about:newtab", null, null);
   return Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
 });
@@ -41,14 +41,15 @@ let LinkChecker = {
            Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
   },
 
-  checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
-    if (!(aURI in this._cache))
+  checkLoadURI: function LinkCheckerCheckLoadURI(aURI) {
+    if (!(aURI in this._cache)) {
       this._cache[aURI] = this._doCheckLoadURI(aURI);
+    }
 
     return this._cache[aURI];
   },
 
-  _doCheckLoadURI: function Links_doCheckLoadURI(aURI) {
+  _doCheckLoadURI: function LinkCheckerDoCheckLoadURI(aURI) {
     try {
       Services.scriptSecurityManager.
         checkLoadURIStrWithPrincipal(gPrincipal, aURI, this.flags);
@@ -58,6 +59,46 @@ let LinkChecker = {
       return false;
     }
   }
+};
+
+/**
+ * Singleton that provides utility functions for links.
+ * A link is a plain object that looks like this:
+ *
+ * {
+ *   url: "http://www.mozilla.org/",
+ *   title: "Mozilla",
+ *   frecency: 1337,
+ *   lastVisitDate: 1394678824766431,
+ * }
+ */
+let Links = {
+  _sortProperties: [
+    "frecency",
+    "lastVisitDate",
+    "url",
+  ],
+
+  /**
+   * Compares two links.
+   *
+   * @param {String} aLink1 The first link.
+   * @param {String} aLink2 The second link.
+   * @return {Number} A negative number if aLink1 is ordered before aLink2, zero if
+   *         aLink1 and aLink2 have the same ordering, or a positive number if
+   *         aLink1 is ordered after aLink2.
+   *
+   */
+  compareLinks: function LinksCompareLinks(aLink1, aLink2) {
+    for (let prop of this._sortProperties) {
+      if (!(prop in aLink1) || !(prop in aLink2)) {
+        throw new Error("Comparable link missing required property: " + prop);
+      }
+    }
+    return aLink2.frecency - aLink1.frecency ||
+           aLink2.lastVisitDate - aLink1.lastVisitDate ||
+           aLink1.url.localeCompare(aLink2.url);
+  },
 };
 
 /**
@@ -73,45 +114,27 @@ let PlacesProvider = {
   /**
    * Must be called before the provider is used.
    */
-  init: function PlacesProvider_init() {
+  init: function PlacesProviderInit() {
     PlacesUtils.history.addObserver(this, true);
   },
 
   /**
-   * Compares two links.
-   * @param aLink1 The first link.
-   * @param aLink2 The second link.
-   * @return A negative number if aLink1 is ordered before aLink2, zero if
-   *         aLink1 and aLink2 have the same ordering, or a positive number if
-   *         aLink1 is ordered after aLink2.
-   *
-   * @note compareLinks's this object is bound to Links below.
-   */
-  compareLinks: function PlacesProvider_compareLinks(aLink1, aLink2) {
-    for (let prop of this._sortProperties) {
-      if (!(prop in aLink1) || !(prop in aLink2))
-        throw new Error("Comparable link missing required property: " + prop);
-    }
-    return aLink2.frecency - aLink1.frecency ||
-           aLink2.lastVisitDate - aLink1.lastVisitDate ||
-           aLink1.url.localeCompare(aLink2.url);
-  },
-
-  /**
    * Gets the current set of links delivered by this provider.
-   * @param aCallback The function that the array of links is passed to.
+   *
+   * @param {Function} aCallback The function that the array of links is passed to.
    */
-  getLinks: function PlacesProvider_getLinks(aCallback) {
+  getLinks: function PlacesProviderGetLinks(aCallback) {
     let options = PlacesUtils.history.getNewQueryOptions();
     options.maxResults = this.maxNumLinks;
 
     // Sort by frecency, descending.
-    options.sortingMode = Ci.nsINavHistoryQueryOptions.SORT_BY_FRECENCY_DESCENDING;
+    options.sortingMode = Ci.nsINavHistoryQueryOptions
+      .SORT_BY_FRECENCY_DESCENDING;
 
     let links = [];
 
     let callback = {
-      handleResult: function (aResultSet) {
+      handleResult: function(aResultSet) {
         let row;
 
         while ((row = aResultSet.getNextRow())) {
@@ -131,12 +154,12 @@ let PlacesProvider = {
         }
       },
 
-      handleError: function (aError) {
+      handleError: function(aError) {
         // Should we somehow handle this error?
         aCallback([]);
       },
 
-      handleCompletion: function (aReason) {
+      handleCompletion: function(aReason) {
         // The Places query breaks ties in frecency by place ID descending, but
         // that's different from how Links.compareLinks breaks ties, because
         // compareLinks doesn't have access to place IDs.  It's very important
@@ -146,13 +169,14 @@ let PlacesProvider = {
         let i = 1;
         let outOfOrder = [];
         while (i < links.length) {
-          if (PlacesProvider.compareLinks(links[i - 1], links[i]) > 0)
+          if (Links.compareLinks(links[i - 1], links[i]) > 0) {
             outOfOrder.push(links.splice(i, 1)[0]);
-          else
+          } else {
             i++;
+          }
         }
         for (let link of outOfOrder) {
-          i = BinarySearch.insertionIndexOf(PlacesProvider.compareLinks, links, link);
+          i = BinarySearch.insertionIndexOf(Links.compareLinks, links, link);
           links.splice(i, 0, link);
         }
 
@@ -168,7 +192,8 @@ let PlacesProvider = {
 
   /**
    * Registers an object that will be notified when the provider's links change.
-   * @param aObserver An object with the following optional properties:
+   *
+   * @param {Object} aObserver An object with the following optional properties:
    *        * onLinkChanged: A function that's called when a single link
    *          changes.  It's passed the provider and the link object.  Only the
    *          link's `url` property is guaranteed to be present.  If its `title`
@@ -182,7 +207,7 @@ let PlacesProvider = {
    *          change at once.  It's passed the provider.  You should call
    *          getLinks to get the provider's new list of links.
    */
-  addObserver: function PlacesProvider_addObserver(aObserver) {
+  addObserver: function PlacesProviderAddObserver(aObserver) {
     this._observers.push(aObserver);
   },
 
@@ -191,7 +216,7 @@ let PlacesProvider = {
   /**
    * Called by the history service.
    */
-  onDeleteURI: function PlacesProvider_onDeleteURI(aURI, aGUID, aReason) {
+  onDeleteURI: function PlacesProviderOnDeleteURI(aURI, aGUID, aReason) {
     // let observers remove sensetive data associated with deleted visit
     this._callObservers("onDeleteURI", {
       url: aURI.spec,
@@ -205,7 +230,8 @@ let PlacesProvider = {
   /**
    * Called by the history service.
    */
-  onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI, aNewFrecency, aGUID, aHidden, aLastVisitDate) {
+  onFrecencyChanged: function PlacesProviderOnFrecencyChanged(aURI,
+                         aNewFrecency, aGUID, aHidden, aLastVisitDate) {
     // The implementation of the query in getLinks excludes hidden and
     // unvisited pages, so it's important to exclude them here, too.
     if (!aHidden && aLastVisitDate) {
@@ -221,21 +247,22 @@ let PlacesProvider = {
   /**
    * Called by the history service.
    */
-  onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
+  onManyFrecenciesChanged: function PlacesProviderOnManyFrecenciesChanged() {
     this._callObservers("onManyLinksChanged");
   },
 
   /**
    * Called by the history service.
    */
-  onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle, aGUID) {
+  onTitleChanged: function PlacesProviderOnTitleChanged(aURI, aNewTitle,
+                      aGUID) {
     this._callObservers("onLinkChanged", {
       url: aURI.spec,
       title: aNewTitle
     });
   },
 
-  _callObservers: function PlacesProvider__callObservers(aMethodName, aArg) {
+  _callObservers: function PlacesProviderCallObservers(aMethodName, aArg) {
     for (let obs of this._observers) {
       if (obs[aMethodName]) {
         try {
