@@ -33,6 +33,7 @@ EXTRA_JS_MODULES += [
     'NewTabURL.jsm',
     'offlineAppCache.jsm',
     'PanelFrame.jsm',
+    'PlacesProvider.jsm',
     'PluginContent.jsm',
     'ProcessHangMonitor.jsm',
     'ReaderParent.jsm',
