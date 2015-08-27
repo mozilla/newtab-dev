@@ -9,9 +9,7 @@
 
 this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
+const {interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
