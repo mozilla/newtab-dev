@@ -71,7 +71,7 @@ let LinkChecker = {
  *   lastVisitDate: 1394678824766431,
  * }
  */
-let Links = {
+let LinkUtils = {
   _sortProperties: [
     "frecency",
     "lastVisitDate",
@@ -104,7 +104,7 @@ let Links = {
  * Singleton that serves as the default link provider for the grid. It queries
  * the history to retrieve the most frequently visited sites.
  */
-let PlacesProvider = {
+let Provider = {
   /**
    * Set this to change the maximum number of links the provider will provide.
    */
@@ -120,73 +120,76 @@ let PlacesProvider = {
   /**
    * Gets the current set of links delivered by this provider.
    *
-   * @param {Function} aCallback The function that the array of links is passed to.
+   * @returns {Promise} Returns a promise with the array of links as payload.
    */
-  getLinks: function PlacesProviderGetLinks(aCallback) {
-    let options = PlacesUtils.history.getNewQueryOptions();
-    options.maxResults = this.maxNumLinks;
+  getLinks: function PlacesProviderGetLinks() {
+    let getLinksPromise = new Promise((resolve, reject) => {
+      let options = PlacesUtils.history.getNewQueryOptions();
+      options.maxResults = this.maxNumLinks;
 
-    // Sort by frecency, descending.
-    options.sortingMode = Ci.nsINavHistoryQueryOptions
-      .SORT_BY_FRECENCY_DESCENDING;
+      // Sort by frecency, descending.
+      options.sortingMode = Ci.nsINavHistoryQueryOptions
+        .SORT_BY_FRECENCY_DESCENDING;
 
-    let links = [];
+      let links = [];
 
-    let callback = {
-      handleResult: function(aResultSet) {
-        let row;
+      let callback = {
+        handleResult: function(aResultSet) {
+          let row;
 
-        while ((row = aResultSet.getNextRow())) {
-          let url = row.getResultByIndex(1);
-          if (LinkChecker.checkLoadURI(url)) {
-            let title = row.getResultByIndex(2);
-            let frecency = row.getResultByIndex(12);
-            let lastVisitDate = row.getResultByIndex(5);
-            links.push({
-              url: url,
-              title: title,
-              frecency: frecency,
-              lastVisitDate: lastVisitDate,
-              type: "history",
-            });
+          while ((row = aResultSet.getNextRow())) {
+            let url = row.getResultByIndex(1);
+            if (LinkChecker.checkLoadURI(url)) {
+              let title = row.getResultByIndex(2);
+              let frecency = row.getResultByIndex(12);
+              let lastVisitDate = row.getResultByIndex(5);
+              links.push({
+                url: url,
+                title: title,
+                frecency: frecency,
+                lastVisitDate: lastVisitDate,
+                type: "history",
+              });
+            }
           }
-        }
-      },
+        },
 
-      handleError: function(aError) { // jshint ignore:line
-        // Should we somehow handle this error?
-        aCallback([]);
-      },
+        handleError: function(aError) {
+          reject(aError);
+        },
 
-      handleCompletion: function(aReason) { // jshint ignore:line
-        // The Places query breaks ties in frecency by place ID descending, but
-        // that's different from how Links.compareLinks breaks ties, because
-        // compareLinks doesn't have access to place IDs.  It's very important
-        // that the initial list of links is sorted in the same order imposed by
-        // compareLinks, because Links uses compareLinks to perform binary
-        // searches on the list.  So, ensure the list is so ordered.
-        let i = 1;
-        let outOfOrder = [];
-        while (i < links.length) {
-          if (Links.compareLinks(links[i - 1], links[i]) > 0) {
-            outOfOrder.push(links.splice(i, 1)[0]);
-          } else {
-            i++;
+        handleCompletion: function(aReason) { // jshint ignore:line
+          // The Places query breaks ties in frecency by place ID descending, but
+          // that's different from how Links.compareLinks breaks ties, because
+          // compareLinks doesn't have access to place IDs.  It's very important
+          // that the initial list of links is sorted in the same order imposed by
+          // compareLinks, because Links uses compareLinks to perform binary
+          // searches on the list.  So, ensure the list is so ordered.
+          let i = 1;
+          let outOfOrder = [];
+          while (i < links.length) {
+            if (LinkUtils.compareLinks(links[i - 1], links[i]) > 0) {
+              outOfOrder.push(links.splice(i, 1)[0]);
+            } else {
+              i++;
+            }
           }
-        }
-        for (let link of outOfOrder) {
-          i = BinarySearch.insertionIndexOf(Links.compareLinks, links, link);
-          links.splice(i, 0, link);
-        }
+          for (let link of outOfOrder) {
+            i = BinarySearch.insertionIndexOf(LinkUtils.compareLinks, links, link);
+            links.splice(i, 0, link);
+          }
 
-        aCallback(links);
-      }
-    };
+          resolve(links);
+        }
+      };
 
-    // Execute the query.
-    let query = PlacesUtils.history.getNewQuery();
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase);
-    db.asyncExecuteLegacyQueries([query], 1, options, callback);
+      // Execute the query.
+      let query = PlacesUtils.history.getNewQuery();
+      let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase);
+      db.asyncExecuteLegacyQueries([query], 1, options, callback);
+    });
+
+    return getLinksPromise;
   },
 
   /**
@@ -274,4 +277,10 @@ let PlacesProvider = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINavHistoryObserver,
                                          Ci.nsISupportsWeakReference]),
+};
+
+let PlacesProvider = {
+  LinkChecker: LinkChecker,
+  LinkUtils: LinkUtils,
+  Provider: Provider,
 };
