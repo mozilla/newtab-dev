@@ -6,7 +6,8 @@
 "use strict";
 (function() {
   const {
-    utils: Cu
+    utils: Cu,
+    interfaces: Ci
   } = Components;
   const TRUSTED_ORIGIN = "https://mozilla.github.io";
   const {
@@ -80,6 +81,8 @@
       rows: prefs.getIntPref("browser.newtabpage.rows"),
       columns: prefs.getIntPref("browser.newtabpage.columns"),
       introShown: prefs.getBoolPref("browser.newtabpage.introShown"),
+      windowID: window.QueryInterface(Ci.nsIInterfaceRequestor)
+        .getInterface(Ci.nsIDOMWindowUtils).outerWindowID,
       privateBrowsingMode: isPrivate
     };
     let iframe = getIframe();
