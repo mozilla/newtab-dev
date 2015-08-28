@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal */
+/* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal, EventEmitter*/
 /* exported PlacesProvider */
 
 "use strict";
@@ -18,6 +18,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "BinarySearch",
 
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "EventEmitter", function() {
+  const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
+  return EventEmitter;
+});
 
 XPCOMUtils.defineLazyGetter(this, "gPrincipal", function() {
   let uri = Services.io.newURI("about:newtab", null, null);
@@ -106,15 +111,68 @@ let LinkUtils = {
  */
 let Provider = {
   /**
+   * EventEmitter interface
+   */
+  eventEmitter: new EventEmitter(),
+  on: (...params) => this.eventEmitter.on(...params),
+  once: (...params) => this.eventEmitter.once(...params),
+  off: (...params) => this.eventEmitter.off(...params),
+
+  /**
    * Set this to change the maximum number of links the provider will provide.
    */
   maxNumLinks: HISTORY_RESULTS_LIMIT,
 
   /**
+   * A set of functions called by @mozilla.org/browser/nav-historyservice
+   * All history events are emitted from this object.
+   */
+  historyObserver: {
+    onDeleteURI: function PlacesProvider_onDeleteURI(aURI) {
+      // let observers remove sensetive data associated with deleted visit
+      Provider.eventEmitter.emit("deleteURI", {
+        url: aURI.spec,
+      });
+    },
+
+    onClearHistory: function() {
+      Provider.eventEmitter.emit("clearHistory");
+    },
+
+    onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI,
+                           aNewFrecency, aGUID, aHidden, aLastVisitDate) { // jshint ignore:line
+      // The implementation of the query in getLinks excludes hidden and
+      // unvisited pages, so it's important to exclude them here, too.
+      if (!aHidden && aLastVisitDate) {
+        Provider.eventEmitter.emit("linkChanged", {
+          url: aURI.spec,
+          frecency: aNewFrecency,
+          lastVisitDate: aLastVisitDate,
+          type: "history",
+        });
+      }
+    },
+
+    onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
+      Provider.eventEmitter.emit("manyLinksChanged");
+    },
+
+    onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle) {
+      Provider.eventEmitter.emit("linkChanged", {
+        url: aURI.spec,
+        title: aNewTitle
+      });
+    },
+
+    QueryInterface: XPCOMUtils.generateQI([Ci.nsINavHistoryObserver,
+                        Ci.nsISupportsWeakReference])
+  },
+
+  /**
    * Must be called before the provider is used.
    */
   init: function PlacesProvider_init() {
-    PlacesUtils.history.addObserver(this, true);
+    PlacesUtils.history.addObserver(this.historyObserver, true);
   },
 
   /**
@@ -190,93 +248,7 @@ let Provider = {
     });
 
     return getLinksPromise;
-  },
-
-  /**
-   * Registers an object that will be notified when the provider's links change.
-   *
-   * @param {Object} aObserver An object with the following optional properties:
-   *        * onLinkChanged: A function that's called when a single link
-   *          changes.  It's passed the provider and the link object.  Only the
-   *          link's `url` property is guaranteed to be present.  If its `title`
-   *          property is present, then its title has changed, and the
-   *          property's value is the new title.  If any sort properties are
-   *          present, then its position within the provider's list of links may
-   *          have changed, and the properties' values are the new sort-related
-   *          values.  Note that this link may not necessarily have been present
-   *          in the lists returned from any previous calls to getLinks.
-   *        * onManyLinksChanged: A function that's called when many links
-   *          change at once.  It's passed the provider.  You should call
-   *          getLinks to get the provider's new list of links.
-   */
-  addObserver: function PlacesProvider_addObserver(aObserver) {
-    this._observers.push(aObserver);
-  },
-
-  _observers: [],
-
-  /**
-   * Called by the history service.
-   */
-  onDeleteURI: function PlacesProvider_onDeleteURI(aURI) {
-    // let observers remove sensetive data associated with deleted visit
-    this._callObservers("onDeleteURI", {
-      url: aURI.spec,
-    });
-  },
-
-  onClearHistory: function() {
-    this._callObservers("onClearHistory");
-  },
-
-  /**
-   * Called by the history service.
-   */
-  onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI,
-                         aNewFrecency, aGUID, aHidden, aLastVisitDate) { // jshint ignore:line
-    // The implementation of the query in getLinks excludes hidden and
-    // unvisited pages, so it's important to exclude them here, too.
-    if (!aHidden && aLastVisitDate) {
-      this._callObservers("onLinkChanged", {
-        url: aURI.spec,
-        frecency: aNewFrecency,
-        lastVisitDate: aLastVisitDate,
-        type: "history",
-      });
-    }
-  },
-
-  /**
-   * Called by the history service.
-   */
-  onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
-    this._callObservers("onManyLinksChanged");
-  },
-
-  /**
-   * Called by the history service.
-   */
-  onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle) {
-    this._callObservers("onLinkChanged", {
-      url: aURI.spec,
-      title: aNewTitle
-    });
-  },
-
-  _callObservers: function PlacesProvider_callObservers(aMethodName, aArg) {
-    for (let obs of this._observers) {
-      if (obs[aMethodName]) {
-        try {
-          obs[aMethodName](this, aArg);
-        } catch (err) {
-          Cu.reportError(err);
-        }
-      }
-    }
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavHistoryObserver,
-                                         Ci.nsISupportsWeakReference]),
+  }
 };
 
 let PlacesProvider = {
