@@ -104,8 +104,8 @@ add_task(function test_LinkUtils_compareLinks() {
 
 /** Test Provider **/
 
-add_task(function* test_Provider_getLinks() {
-  let provider = PlacesProvider.Provider;
+add_task(function* test_Links_getLinks() {
+  let provider = PlacesProvider.Links;
 
   let links = yield provider.getLinks();
   equal(links.length, 0, "empty history yields empty links");

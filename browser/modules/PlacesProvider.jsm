@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal, EventEmitter*/
+/* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal, EventEmitter */
 /* exported PlacesProvider */
 
 "use strict";
@@ -109,7 +109,7 @@ let LinkUtils = {
  * Singleton that serves as the default link provider for the grid. It queries
  * the history to retrieve the most frequently visited sites.
  */
-let Provider = {
+let Links = {
   /**
    * EventEmitter interface
    */
@@ -130,13 +130,13 @@ let Provider = {
   historyObserver: {
     onDeleteURI: function PlacesProvider_onDeleteURI(aURI) {
       // let observers remove sensetive data associated with deleted visit
-      Provider.eventEmitter.emit("deleteURI", {
+      Links.eventEmitter.emit("deleteURI", {
         url: aURI.spec,
       });
     },
 
     onClearHistory: function() {
-      Provider.eventEmitter.emit("clearHistory");
+      Links.eventEmitter.emit("clearHistory");
     },
 
     onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI,
@@ -144,7 +144,7 @@ let Provider = {
       // The implementation of the query in getLinks excludes hidden and
       // unvisited pages, so it's important to exclude them here, too.
       if (!aHidden && aLastVisitDate) {
-        Provider.eventEmitter.emit("linkChanged", {
+        Links.eventEmitter.emit("linkChanged", {
           url: aURI.spec,
           frecency: aNewFrecency,
           lastVisitDate: aLastVisitDate,
@@ -154,11 +154,11 @@ let Provider = {
     },
 
     onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
-      Provider.eventEmitter.emit("manyLinksChanged");
+      Links.eventEmitter.emit("manyLinksChanged");
     },
 
     onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle) {
-      Provider.eventEmitter.emit("linkChanged", {
+      Links.eventEmitter.emit("linkChanged", {
         url: aURI.spec,
         title: aNewTitle
       });
@@ -254,5 +254,5 @@ let Provider = {
 let PlacesProvider = {
   LinkChecker: LinkChecker,
   LinkUtils: LinkUtils,
-  Provider: Provider,
+  Links: Links,
 };
