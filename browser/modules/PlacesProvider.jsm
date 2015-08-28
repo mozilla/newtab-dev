@@ -40,7 +40,7 @@ let LinkChecker = {
            Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
   },
 
-  checkLoadURI: function LinkCheckerCheckLoadURI(aURI) {
+  checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
     if (!(aURI in this._cache)) {
       this._cache[aURI] = this._doCheckLoadURI(aURI);
     }
@@ -48,7 +48,7 @@ let LinkChecker = {
     return this._cache[aURI];
   },
 
-  _doCheckLoadURI: function LinkCheckerDoCheckLoadURI(aURI) {
+  _doCheckLoadURI: function LinkChecker_doCheckLoadURI(aURI) {
     try {
       Services.scriptSecurityManager.
         checkLoadURIStrWithPrincipal(gPrincipal, aURI, this.flags);
@@ -86,9 +86,9 @@ let LinkUtils = {
    * @return {Number} A negative number if aLink1 is ordered before aLink2, zero if
    *         aLink1 and aLink2 have the same ordering, or a positive number if
    *         aLink1 is ordered after aLink2.
-   *
+   *         Order is ascending.
    */
-  compareLinks: function LinksCompareLinks(aLink1, aLink2) {
+  compareLinks: function LinkUtils_compareLinks(aLink1, aLink2) {
     for (let prop of this._sortProperties) {
       if (!(prop in aLink1) || !(prop in aLink2)) {
         throw new Error("Comparable link missing required property: " + prop);
@@ -113,7 +113,7 @@ let Provider = {
   /**
    * Must be called before the provider is used.
    */
-  init: function PlacesProviderInit() {
+  init: function PlacesProvider_init() {
     PlacesUtils.history.addObserver(this, true);
   },
 
@@ -122,7 +122,7 @@ let Provider = {
    *
    * @returns {Promise} Returns a promise with the array of links as payload.
    */
-  getLinks: function PlacesProviderGetLinks() {
+  getLinks: function PlacesProvider_getLinks() {
     let getLinksPromise = new Promise((resolve, reject) => {
       let options = PlacesUtils.history.getNewQueryOptions();
       options.maxResults = this.maxNumLinks;
@@ -209,7 +209,7 @@ let Provider = {
    *          change at once.  It's passed the provider.  You should call
    *          getLinks to get the provider's new list of links.
    */
-  addObserver: function PlacesProviderAddObserver(aObserver) {
+  addObserver: function PlacesProvider_addObserver(aObserver) {
     this._observers.push(aObserver);
   },
 
@@ -218,7 +218,7 @@ let Provider = {
   /**
    * Called by the history service.
    */
-  onDeleteURI: function PlacesProviderOnDeleteURI(aURI) {
+  onDeleteURI: function PlacesProvider_onDeleteURI(aURI) {
     // let observers remove sensetive data associated with deleted visit
     this._callObservers("onDeleteURI", {
       url: aURI.spec,
@@ -232,7 +232,7 @@ let Provider = {
   /**
    * Called by the history service.
    */
-  onFrecencyChanged: function PlacesProviderOnFrecencyChanged(aURI,
+  onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI,
                          aNewFrecency, aGUID, aHidden, aLastVisitDate) { // jshint ignore:line
     // The implementation of the query in getLinks excludes hidden and
     // unvisited pages, so it's important to exclude them here, too.
@@ -249,21 +249,21 @@ let Provider = {
   /**
    * Called by the history service.
    */
-  onManyFrecenciesChanged: function PlacesProviderOnManyFrecenciesChanged() {
+  onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
     this._callObservers("onManyLinksChanged");
   },
 
   /**
    * Called by the history service.
    */
-  onTitleChanged: function PlacesProviderOnTitleChanged(aURI, aNewTitle) {
+  onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle) {
     this._callObservers("onLinkChanged", {
       url: aURI.spec,
       title: aNewTitle
     });
   },
 
-  _callObservers: function PlacesProviderCallObservers(aMethodName, aArg) {
+  _callObservers: function PlacesProvider_callObservers(aMethodName, aArg) {
     for (let obs of this._observers) {
       if (obs[aMethodName]) {
         try {
