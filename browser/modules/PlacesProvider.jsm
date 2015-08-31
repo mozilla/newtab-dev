@@ -54,14 +54,15 @@ let LinkChecker = {
   },
 
   _doCheckLoadURI: function LinkChecker_doCheckLoadURI(aURI) {
+    let result = false;
     try {
       Services.scriptSecurityManager.
         checkLoadURIStrWithPrincipal(gPrincipal, aURI, this.flags);
-      return true;
+      result = true;
     } catch (e) {
       // We got a weird URI or one that would inherit the caller's principal.
-      return false;
     }
+    return result;
   }
 };
 
@@ -76,7 +77,7 @@ let LinkChecker = {
  *   lastVisitDate: 1394678824766431,
  * }
  */
-let LinkUtils = {
+const LinkUtils = {
   _sortProperties: [
     "frecency",
     "lastVisitDate",
@@ -95,7 +96,7 @@ let LinkUtils = {
    */
   compareLinks: function LinkUtils_compareLinks(aLink1, aLink2) {
     for (let prop of this._sortProperties) {
-      if (!(prop in aLink1) || !(prop in aLink2)) {
+      if (!aLink1.hasOwnProperty(prop)) || !(aLink2.hasOwnProperty(prop)) {
         throw new Error("Comparable link missing required property: " + prop);
       }
     }
@@ -109,7 +110,7 @@ let LinkUtils = {
  * Singleton that serves as the default link provider for the grid. It queries
  * the history to retrieve the most frequently visited sites.
  */
-let Links = {
+const Links = {
   /**
    * EventEmitter interface
    */
