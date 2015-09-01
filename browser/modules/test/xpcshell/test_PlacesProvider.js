@@ -1,6 +1,6 @@
 "use strict";
 
-/* global XPCOMUtils, PlacesTestUtils, PlacesProvider, NetUtil */
+/* global XPCOMUtils, PlacesTestUtils, PlacesProvider, NetUtil, PlacesUtil */
 /* global do_get_profile, do_register_cleanup, run_next_test, add_task */
 /* global equal */
 /* exported run_test */
@@ -20,6 +20,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
     "resource://gre/modules/NetUtil.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+    "resource://gre/modules/PlacesUtils.jsm");
 
 // ensure a profile exists
 do_get_profile();
@@ -46,7 +49,7 @@ add_task(function test_LinkChecker_securityCheck() {
   ];
   for (let {url, expected} of urls) {
     let observed = PlacesProvider.LinkChecker.checkLoadURI(url);
-    equal(observed , expected, `can load "${url}?"`);
+    equal(observed , expected, `can load "${url}"?`);
   }
 });
 
@@ -55,8 +58,8 @@ add_task(function test_LinkChecker_securityCheck() {
 add_task(function test_LinkUtils_compareLinks() {
 
   let fixtures = {
-    aOlder: {
-      url: "http://www.mozilla.org/aolder",
+    firstOlder: {
+      url: "http://www.mozilla.org/firstolder",
       title: "Mozilla",
       frecency: 1337,
       lastVisitDate: 1394678824766431,
@@ -83,7 +86,7 @@ add_task(function test_LinkUtils_compareLinks() {
 
   let links = [
     // tests string ordering, a is before o
-    {link1: fixtures.aOlder, link2: fixtures.older, expected: false},
+    {link1: fixtures.firstOlder, link2: fixtures.older, expected: false},
 
     // test identity
     {link1: fixtures.older, link2: fixtures.older, expected: false},
@@ -100,12 +103,51 @@ add_task(function test_LinkUtils_compareLinks() {
     let observed = PlacesProvider.LinkUtils.compareLinks(link1, link2) > 0;
     equal(observed , expected, `comparing ${link1.url} and ${link2.url}`);
   }
+
+  // test error scenarios
+
+  let errorFixtures = {
+    missingFrecency: {
+      url: "http://www.mozilla.org/firstolder",
+      title: "Mozilla",
+      lastVisitDate: 1394678824766431,
+    },
+    missingVisitDate: {
+      url: "http://www.mozilla.org/firstolder",
+      title: "Mozilla",
+      frecency: 1337,
+    },
+    missingURL: {
+      title: "Mozilla",
+      frecency: 1337,
+      lastVisitDate: 1394678824766431,
+    }
+  };
+
+  let errorLinks = [
+    {link1: fixtures.older, link2: errorFixtures.missingFrecency},
+    {link2: fixtures.older, link1: errorFixtures.missingFrecency},
+    {link1: fixtures.older, link2: errorFixtures.missingVisitDate},
+    {link1: fixtures.older, link2: errorFixtures.missingURL},
+    {link1: errorFixtures.missingFrecency, link2: errorFixtures.missingVisitDate}
+  ];
+
+  let errorCount = 0;
+  for (let {link1, link2, expected} of errorLinks) {
+    try {
+      let observed = PlacesProvider.LinkUtils.compareLinks(link1, link2) > 0;
+    } catch(e) {
+      ok(true, `exception for comparison of ${link1.url} and ${link2.url}`);
+      errorCount += 1;
+    }
+  }
+  equal(errorCount, errorLinks.length);
 });
 
 /** Test Provider **/
 
 add_task(function* test_Links_getLinks() {
-  let provider = PlacesProvider.Links;
+  let provider = PlacesProvider.links;
 
   let links = yield provider.getLinks();
   equal(links.length, 0, "empty history yields empty links");
@@ -117,4 +159,35 @@ add_task(function* test_Links_getLinks() {
   links = yield provider.getLinks();
   equal(links.length, 1, "adding a visit yields a link");
   equal(links[0].url, testURI.spec, "added visit corresponds to added url");
+});
+
+add_task(function* test_Links_onLinkChanged() {
+  let provider = PlacesProvider.links;
+  provider.init();
+
+  let url = "https://example.com/onFrecencyChanged1";
+  let linkChangedMsgCount = 0;
+
+  let linkChangedPromise = new Promise(resolve => {
+    provider.on("linkChanged", (_, link) => {
+      /* There are 3 linkChanged events:
+       * 1. visit insertion (-1 frecency by default)
+       * 2. frecency score update (after transition type calculation etc)
+       * 3. title change
+       */
+      if (link.url == url) {
+        equal(link.url, url, `expected url on linkChanged event`);
+        linkChangedMsgCount += 1;
+        if (linkChangedMsgCount === 3) {
+          ok(true, `all linkChanged events captured`);
+          resolve();
+        }
+      }
+    });
+  });
+
+  // add a visit
+  var testURI = NetUtil.newURI(url);
+  yield PlacesTestUtils.addVisits(testURI);
+  yield linkChangedPromise;
 });

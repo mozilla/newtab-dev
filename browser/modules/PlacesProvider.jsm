@@ -109,43 +109,44 @@ const LinkUtils = {
 /**
  * Singleton that serves as the default link provider for the grid. It queries
  * the history to retrieve the most frequently visited sites.
+ *
+ * Implements the EventEmitter interface.
  */
-const Links = {
-  /**
-   * EventEmitter interface
-   */
-  eventEmitter: new EventEmitter(),
-  on: (...params) => this.eventEmitter.on(...params),
-  once: (...params) => this.eventEmitter.once(...params),
-  off: (...params) => this.eventEmitter.off(...params),
+let Links = function Links() {
+  EventEmitter.decorate(this);
+};
 
+Links.prototype = {
   /**
    * Set this to change the maximum number of links the provider will provide.
    */
-  maxNumLinks: HISTORY_RESULTS_LIMIT,
+  get maxNumLinks() {
+    // getter, so it can't be replaced dynamically
+    return HISTORY_RESULTS_LIMIT;
+  },
 
   /**
    * A set of functions called by @mozilla.org/browser/nav-historyservice
    * All history events are emitted from this object.
    */
   historyObserver: {
-    onDeleteURI: function PlacesProvider_onDeleteURI(aURI) {
+    onDeleteURI: function historyObserver_onDeleteURI(aURI) {
       // let observers remove sensetive data associated with deleted visit
-      Links.eventEmitter.emit("deleteURI", {
+      gLinks.emit("deleteURI", {
         url: aURI.spec,
       });
     },
 
-    onClearHistory: function() {
-      Links.eventEmitter.emit("clearHistory");
+    onClearHistory: function historyObserver_onClearHistory() {
+      gLinks.emit("clearHistory");
     },
 
-    onFrecencyChanged: function PlacesProvider_onFrecencyChanged(aURI,
+    onFrecencyChanged: function historyObserver_onFrecencyChanged(aURI,
                            aNewFrecency, aGUID, aHidden, aLastVisitDate) { // jshint ignore:line
       // The implementation of the query in getLinks excludes hidden and
       // unvisited pages, so it's important to exclude them here, too.
       if (!aHidden && aLastVisitDate) {
-        Links.eventEmitter.emit("linkChanged", {
+        gLinks.emit("linkChanged", {
           url: aURI.spec,
           frecency: aNewFrecency,
           lastVisitDate: aLastVisitDate,
@@ -154,12 +155,12 @@ const Links = {
       }
     },
 
-    onManyFrecenciesChanged: function PlacesProvider_onManyFrecenciesChanged() {
-      Links.eventEmitter.emit("manyLinksChanged");
+    onManyFrecenciesChanged: function historyObserver_onManyFrecenciesChanged() {
+      gLinks.emit("manyLinksChanged");
     },
 
-    onTitleChanged: function PlacesProvider_onTitleChanged(aURI, aNewTitle) {
-      Links.eventEmitter.emit("linkChanged", {
+    onTitleChanged: function historyObserver_onTitleChanged(aURI, aNewTitle) {
+      gLinks.emit("linkChanged", {
         url: aURI.spec,
         title: aNewTitle
       });
@@ -171,6 +172,7 @@ const Links = {
 
   /**
    * Must be called before the provider is used.
+   * Makes it easy to disable under pref
    */
   init: function PlacesProvider_init() {
     PlacesUtils.history.addObserver(this.historyObserver, true);
@@ -248,8 +250,10 @@ const Links = {
   }
 };
 
+const gLinks = new Links();
+
 let PlacesProvider = {
   LinkChecker: LinkChecker,
   LinkUtils: LinkUtils,
-  Links: Links,
+  links: gLinks,
 };
