@@ -44,8 +44,7 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
-    this.pageListener.addMessageListener("NewTab:PinLink", this.pinLink.bind(this));
-    this.pageListener.addMessageListener("NewTab:UnpinLink", this.unpinLink.bind(this));
+    this.pageListener.addMessageListener("NewTab:UpdatePages", this.updatePages.bind(this));
     this.pageListener.addMessageListener("NewTab:ReplacePinLink", this.replacePinLink.bind(this));
     this.pageListener.addMessageListener("NewTab:BlockLink", this.block.bind(this));
     this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
@@ -119,75 +118,6 @@ let RemoteAboutNewTab = {
       pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
       enhancedLinks: this.getEnhancedLinks(),
     });
-  },
-
-  /**
-   * Pins a site at a given index and updates all pages. If a site is being
-   * dragged onto the grid, we will receive a message to both pin the dragged
-   * site and to ensure that the dragged site is not blocked.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        index (Integer):
-   *          The cell index to pin the site at.
-   *        ensureUnblocked (Boolean):
-   *          Tells us if we need to unblock the site as well. If true,
-   *          unblock the site.
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  pinLink: function(message) {
-    let link = message.data.link;
-    let index = message.data.index;
-    RemoteNewTabUtils.pinnedLinks.pin(link, index);
-    message.target.sendAsyncMessage("NewTab:PinState", {
-      pinState: RemoteNewTabUtils.pinnedLinks.links[index].pinState,
-      link,
-    });
-    if (message.data.ensureUnblocked) {
-      this.unblock(message);
-    } else {
-      this.updatePages(message);
-    }
-  },
-
-  /**
-   * Unpins a site and updates all pages.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  unpinLink: function(message) {
-    let link = message.data.link;
-    RemoteNewTabUtils.pinnedLinks.unpin(link);
-    message.target.sendAsyncMessage("NewTab:PinState", {
-      pinState: link.pinState,
-      links: RemoteNewTabUtils.links.getLinks(),
-      link,
-    });
-    this.updatePages(message);
   },
 
   /**
