@@ -96,7 +96,7 @@ const LinkUtils = {
    */
   compareLinks: function LinkUtils_compareLinks(aLink1, aLink2) {
     for (let prop of this._sortProperties) {
-      if (!aLink1.hasOwnProperty(prop)) || !(aLink2.hasOwnProperty(prop)) {
+      if (!aLink1.hasOwnProperty(prop) || !aLink2.hasOwnProperty(prop)) {
         throw new Error("Comparable link missing required property: " + prop);
       }
     }
@@ -192,23 +192,19 @@ const Links = {
 
       let links = [];
 
-      let callback = {
+      let queryHandlers = {
         handleResult: function(aResultSet) {
-          let row;
-
-          while ((row = aResultSet.getNextRow())) {
+          for (let row = aResultSet.getNextRow(); row; row = aResultSet.getNextRow()) {
             let url = row.getResultByIndex(1);
             if (LinkChecker.checkLoadURI(url)) {
-              let title = row.getResultByIndex(2);
-              let frecency = row.getResultByIndex(12);
-              let lastVisitDate = row.getResultByIndex(5);
-              links.push({
+              let link = {
                 url: url,
-                title: title,
-                frecency: frecency,
-                lastVisitDate: lastVisitDate,
+                title: row.getResultByIndex(2),
+                frecency: row.getResultByIndex(12),
+                lastVisitDate: row.getResultByIndex(5),
                 type: "history",
-              });
+              };
+              links.push(link);
             }
           }
         },
@@ -245,7 +241,7 @@ const Links = {
       // Execute the query.
       let query = PlacesUtils.history.getNewQuery();
       let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase);
-      db.asyncExecuteLegacyQueries([query], 1, options, callback);
+      db.asyncExecuteLegacyQueries([query], 1, options, queryHandlers);
     });
 
     return getLinksPromise;
