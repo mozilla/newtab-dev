@@ -3,6 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* global XPCOMUtils, Services, BinarySearch, PlacesUtils, gPrincipal, EventEmitter */
+/* global gLinks */
 /* exported PlacesProvider */
 
 "use strict";
@@ -250,7 +251,10 @@ Links.prototype = {
   }
 };
 
-const gLinks = new Links();
+/**
+ * Singleton that serves as the default link provider for the grid.
+ */
+const gLinks = new Links(); // jshint ignore:line
 
 let PlacesProvider = {
   LinkChecker: LinkChecker,
