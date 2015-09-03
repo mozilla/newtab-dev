@@ -7,6 +7,7 @@
 
 const {
   utils: Cu,
+  interfaces: Ci,
 } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -240,5 +241,31 @@ add_task(function* test_Links_onDeleteURI() {
   yield PlacesTestUtils.addVisits(testURI);
   yield PlacesUtils.history.remove(testURL);
   yield deleteURIPromise;
+  provider.destroy();
+});
+
+add_task(function* test_Links_onManyLinksChanged() {
+  let provider = PlacesProvider.links;
+  provider.init();
+
+  let promise = new Promise(resolve => {
+    let handler = () => {
+      ok(true);
+      provider.off("manyLinksChanged", handler);
+      resolve();
+    };
+
+    provider.on("manyLinksChanged", handler);
+  });
+
+  let testURL = "https://example.com/toDelete";
+  var testURI = NetUtil.newURI(testURL);
+  yield PlacesTestUtils.addVisits(testURI);
+
+  // trigger DecayFrecency
+  PlacesUtils.history.QueryInterface(Ci.nsIObserver).
+    observe(null, "idle-daily", "");
+
+  yield promise;
   provider.destroy();
 });
