@@ -165,7 +165,7 @@ add_task(function* test_Links_onLinkChanged() {
   let linkChangedMsgCount = 0;
 
   let linkChangedPromise = new Promise(resolve => {
-    provider.on("linkChanged", (_, link) => { // jshint ignore:line
+    let handler = (_, link) => { // jshint ignore:line
       /* There are 3 linkChanged events:
        * 1. visit insertion (-1 frecency by default)
        * 2. frecency score update (after transition type calculation etc)
@@ -176,10 +176,12 @@ add_task(function* test_Links_onLinkChanged() {
         linkChangedMsgCount += 1;
         if (linkChangedMsgCount === 3) {
           ok(true, `all linkChanged events captured`);
+	  provider.off("linkChanged", this);
           resolve();
         }
       }
-    });
+    };
+    provider.on("linkChanged", handler);
   });
 
   // add a visit
@@ -196,10 +198,12 @@ add_task(function* test_Links_onClearHistory() {
   provider.init();
 
   let clearHistoryPromise = new Promise(resolve => {
-    provider.on("clearHistory", () => {
+    let handler = () => {
       ok(true, `clearHistory event captured`);
+      provider.off("clearHistory", handler);
       resolve();
-    });
+    };
+    provider.on("clearHistory", handler);
   });
 
   // add visits
