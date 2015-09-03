@@ -1,6 +1,6 @@
 "use strict";
 
-/* global XPCOMUtils, PlacesTestUtils, PlacesProvider, NetUtil */
+/* global XPCOMUtils, PlacesUtils, PlacesTestUtils, PlacesProvider, NetUtil */
 /* global do_get_profile, do_register_cleanup, run_next_test, add_task */
 /* global equal, ok */
 /* exported run_test */
@@ -14,6 +14,9 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesProvider",
     "resource:///modules/PlacesProvider.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+    "resource://gre/modules/PlacesUtils.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
     "resource://testing-common/PlacesTestUtils.jsm");
 
@@ -25,8 +28,8 @@ do_get_profile();
 
 function run_test() {
   run_next_test();
-  do_register_cleanup(function() {
-    // clear history
+  do_register_cleanup(function* () {
+    yield PlacesTestUtils.clearHistory();
   });
 }
 
@@ -176,7 +179,7 @@ add_task(function* test_Links_onLinkChanged() {
         linkChangedMsgCount += 1;
         if (linkChangedMsgCount === 3) {
           ok(true, `all linkChanged events captured`);
-	  provider.off("linkChanged", this);
+          provider.off("linkChanged", this);
           resolve();
         }
       }
@@ -214,5 +217,28 @@ add_task(function* test_Links_onClearHistory() {
   }
   yield PlacesTestUtils.clearHistory();
   yield clearHistoryPromise;
+  provider.destroy();
+});
+
+add_task(function* test_Links_onDeleteURI() {
+  let provider = PlacesProvider.links;
+  provider.init();
+
+  let testURL = "https://example.com/toDelete";
+
+  let deleteURIPromise = new Promise(resolve => {
+    let handler = (_, {url}) => { // jshint ignore:line
+      equal(testURL, url, "deleted url and expected url are the same");
+      provider.off("deleteURI", handler);
+      resolve();
+    };
+
+    provider.on("deleteURI", handler);
+  });
+
+  var testURI = NetUtil.newURI(testURL);
+  yield PlacesTestUtils.addVisits(testURI);
+  yield PlacesUtils.history.remove(testURL);
+  yield deleteURIPromise;
   provider.destroy();
 });
