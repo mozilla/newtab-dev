@@ -153,7 +153,7 @@ add_task(function* test_Links_getLinks() {
   equal(links.length, 0, "empty history yields empty links");
 
   // add a visit
-  var testURI = NetUtil.newURI("http://mozilla.com");
+  let testURI = NetUtil.newURI("http://mozilla.com");
   yield PlacesTestUtils.addVisits(testURI);
 
   links = yield provider.getLinks();
@@ -189,7 +189,7 @@ add_task(function* test_Links_onLinkChanged() {
   });
 
   // add a visit
-  var testURI = NetUtil.newURI(url);
+  let testURI = NetUtil.newURI(url);
   yield PlacesTestUtils.addVisits(testURI);
   yield linkChangedPromise;
 
@@ -213,7 +213,7 @@ add_task(function* test_Links_onClearHistory() {
   // add visits
   for (let i = 0; i <= 10; i++) {
     let url = `https://example.com/onClearHistory${i}`;
-    var testURI = NetUtil.newURI(url);
+    let testURI = NetUtil.newURI(url);
     yield PlacesTestUtils.addVisits(testURI);
   }
   yield PlacesTestUtils.clearHistory();
@@ -237,7 +237,7 @@ add_task(function* test_Links_onDeleteURI() {
     provider.on("deleteURI", handler);
   });
 
-  var testURI = NetUtil.newURI(testURL);
+  let testURI = NetUtil.newURI(testURL);
   yield PlacesTestUtils.addVisits(testURI);
   yield PlacesUtils.history.remove(testURL);
   yield deleteURIPromise;
@@ -259,7 +259,7 @@ add_task(function* test_Links_onManyLinksChanged() {
   });
 
   let testURL = "https://example.com/toDelete";
-  var testURI = NetUtil.newURI(testURL);
+  let testURI = NetUtil.newURI(testURL);
   yield PlacesTestUtils.addVisits(testURI);
 
   // trigger DecayFrecency
