@@ -107,10 +107,8 @@ const LinkUtils = {
   },
 };
 
-/**
- * Singleton that serves as the default link provider for the grid. It queries
- * the history to retrieve the most frequently visited sites.
- *
+/* Queries history to retrieve the most visited sites. Emits events when the
+ * history changes.
  * Implements the EventEmitter interface.
  */
 let Links = function Links() {
@@ -177,6 +175,13 @@ Links.prototype = {
    */
   init: function PlacesProvider_init() {
     PlacesUtils.history.addObserver(this.historyObserver, true);
+  },
+
+  /**
+   * Must be called before the provider is unloaded.
+   */
+  destroy: function PlacesProvider_destroy() {
+    PlacesUtils.history.removeObserver(this.historyObserver);
   },
 
   /**

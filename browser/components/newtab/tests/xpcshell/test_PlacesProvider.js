@@ -1,8 +1,8 @@
 "use strict";
 
-/* global XPCOMUtils, PlacesTestUtils, PlacesProvider, NetUtil, PlacesUtil */
+/* global XPCOMUtils, PlacesTestUtils, PlacesProvider, NetUtil */
 /* global do_get_profile, do_register_cleanup, run_next_test, add_task */
-/* global equal */
+/* global equal, ok */
 /* exported run_test */
 
 const {
@@ -10,7 +10,6 @@ const {
 } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesProvider",
     "resource:///modules/PlacesProvider.jsm");
@@ -20,9 +19,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
     "resource://gre/modules/NetUtil.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-    "resource://gre/modules/PlacesUtils.jsm");
 
 // ensure a profile exists
 do_get_profile();
@@ -133,10 +129,10 @@ add_task(function test_LinkUtils_compareLinks() {
   ];
 
   let errorCount = 0;
-  for (let {link1, link2, expected} of errorLinks) {
+  for (let {link1, link2} of errorLinks) {
     try {
-      let observed = PlacesProvider.LinkUtils.compareLinks(link1, link2) > 0;
-    } catch(e) {
+      let observed = PlacesProvider.LinkUtils.compareLinks(link1, link2) > 0; // jshint ignore:line
+    } catch (e) {
       ok(true, `exception for comparison of ${link1.url} and ${link2.url}`);
       errorCount += 1;
     }
@@ -169,13 +165,13 @@ add_task(function* test_Links_onLinkChanged() {
   let linkChangedMsgCount = 0;
 
   let linkChangedPromise = new Promise(resolve => {
-    provider.on("linkChanged", (_, link) => {
+    provider.on("linkChanged", (_, link) => { // jshint ignore:line
       /* There are 3 linkChanged events:
        * 1. visit insertion (-1 frecency by default)
        * 2. frecency score update (after transition type calculation etc)
        * 3. title change
        */
-      if (link.url == url) {
+      if (link.url === url) {
         equal(link.url, url, `expected url on linkChanged event`);
         linkChangedMsgCount += 1;
         if (linkChangedMsgCount === 3) {
@@ -190,4 +186,29 @@ add_task(function* test_Links_onLinkChanged() {
   var testURI = NetUtil.newURI(url);
   yield PlacesTestUtils.addVisits(testURI);
   yield linkChangedPromise;
+
+  yield PlacesTestUtils.clearHistory();
+  provider.destroy();
+});
+
+add_task(function* test_Links_onClearHistory() {
+  let provider = PlacesProvider.links;
+  provider.init();
+
+  let clearHistoryPromise = new Promise(resolve => {
+    provider.on("clearHistory", () => {
+      ok(true, `clearHistory event captured`);
+      resolve();
+    });
+  });
+
+  // add visits
+  for (let i = 0; i <= 10; i++) {
+    let url = `https://example.com/onClearHistory${i}`;
+    var testURI = NetUtil.newURI(url);
+    yield PlacesTestUtils.addVisits(testURI);
+  }
+  yield PlacesTestUtils.clearHistory();
+  yield clearHistoryPromise;
+  provider.destroy();
 });
