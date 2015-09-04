@@ -39,7 +39,7 @@ const HISTORY_RESULTS_LIMIT = 100;
  * their caller's principal will be filtered.
  */
 let LinkChecker = {
-  _cache: {},
+  _cache: new Map(),
 
   get flags() {
     return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL |
@@ -47,11 +47,11 @@ let LinkChecker = {
   },
 
   checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
-    if (!(aURI in this._cache)) {
-      this._cache[aURI] = this._doCheckLoadURI(aURI);
+    if (!this._cache.has(aURI)) {
+      this._cache.set(aURI, this._doCheckLoadURI(aURI));
     }
 
-    return this._cache[aURI];
+    return this._cache.get(aURI);
   },
 
   _doCheckLoadURI: function LinkChecker_doCheckLoadURI(aURI) {
