@@ -96,7 +96,7 @@ const LinkUtils = {
    *         Order is ascending.
    */
   compareLinks: function LinkUtils_compareLinks(aLink1, aLink2) {
-    for (let prop of this._sortProperties) {
+    for (let prop of LinkUtils._sortProperties) {
       if (!aLink1.hasOwnProperty(prop) || !aLink2.hasOwnProperty(prop)) {
         throw new Error("Comparable link missing required property: " + prop);
       }

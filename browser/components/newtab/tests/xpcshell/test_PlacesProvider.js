@@ -147,6 +147,7 @@ add_task(function test_LinkUtils_compareLinks() {
 /** Test Provider **/
 
 add_task(function* test_Links_getLinks() {
+  yield PlacesTestUtils.clearHistory();
   let provider = PlacesProvider.links;
 
   let links = yield provider.getLinks();
@@ -159,6 +160,41 @@ add_task(function* test_Links_getLinks() {
   links = yield provider.getLinks();
   equal(links.length, 1, "adding a visit yields a link");
   equal(links[0].url, testURI.spec, "added visit corresponds to added url");
+});
+
+add_task(function* test_Links_getLinks_Order() {
+  yield PlacesTestUtils.clearHistory();
+  let provider = PlacesProvider.links;
+  let {
+    TRANSITION_TYPED,
+    TRANSITION_LINK
+  } = PlacesUtils.history;
+
+  function timeDaysAgo(numDays) {
+    let now = new Date();
+    return now.getTime() - (numDays * 24 * 60 * 60 * 1000);
+  }
+
+  let visits = [
+    // frecency 200
+    {uri: NetUtil.newURI("https://mozilla.com/0"), visitDate: timeDaysAgo(0), transition: TRANSITION_TYPED},
+    // sort by url, frecency 200
+    {uri: NetUtil.newURI("https://mozilla.com/1"), visitDate: timeDaysAgo(0), transition: TRANSITION_TYPED},
+    // sort by last visit date, frecency 200
+    {uri: NetUtil.newURI("https://mozilla.com/2"), visitDate: timeDaysAgo(2), transition: TRANSITION_TYPED},
+    // sort by frecency, frecency 10
+    {uri: NetUtil.newURI("https://mozilla.com/3"), visitDate: timeDaysAgo(2), transition: TRANSITION_LINK},
+  ];
+
+  let links = yield provider.getLinks();
+  equal(links.length, 0, "empty history yields empty links");
+  yield PlacesTestUtils.addVisits(visits);
+
+  links = yield provider.getLinks();
+  equal(links.length, visits.length, "number of links added is the same as obtain by getLinks");
+  for (let i = 0; i < links.length; i++) {
+    equal(links[i].url, visits[i].uri.spec, "links are obtained in the expected order");
+  }
 });
 
 add_task(function* test_Links_onLinkChanged() {
