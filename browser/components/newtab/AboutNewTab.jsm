@@ -7,12 +7,15 @@
 let Cc = Components.classes;
 let Ci = Components.interfaces;
 let Cu = Components.utils;
+const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
 this.EXPORTED_SYMBOLS = [ "AboutNewTab" ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource:///modules/DirectoryLinksProvider.jsm");
+Cu.importGlobalProperties(["URL"]);
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePages",
   "resource://gre/modules/RemotePageManager.jsm");
@@ -20,7 +23,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
   "resource://gre/modules/NewTabUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "BackgroundPageThumbs",
   "resource://gre/modules/BackgroundPageThumbs.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PageThumbsStorage",
+XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DirectoryLinksProvider",
   "resource:///modules/DirectoryLinksProvider.jsm");
@@ -44,8 +47,8 @@ let AboutNewTab = {
     this.pageListener.addMessageListener("NewTab:BlockLink", this.block.bind(this));
     this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
     this.pageListener.addMessageListener("NewTab:UndoAll", this.undoAll.bind(this));
-    this.pageListener.addMessageListener("NewTab:BackgroundPageThumbs", this.backgroundPageThumbs.bind(this));
-    this.pageListener.addMessageListener("NewTab:PageThumbs", this.pageThumbs.bind(this));
+    this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs", this.captureBackgroundPageThumb.bind(this));
+    this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
@@ -283,24 +286,8 @@ let AboutNewTab = {
     }.bind(this));
   },
 
-  /**
-   * Captures the site's thumbnail in the background.
-   *
-   * @param message
-   *        A RemotePageManager message with the following data:
-   *
-   *        url (String):
-   *          The site's URL.
-   */
-  backgroundPageThumbs: function(message) {
-    BackgroundPageThumbs.captureIfMissing(message.data.url);
-  },
-
-  /**
-   * Creates the thumbnail to display for each site based on the unique URL
-   * of the site. Once we have created a URI for the thumbnail, send that URI
-   * down to the child which will render the thumbnail only if the New Tab Page
-   * 'enhanced' feature is enabled.
+    /**
+   * Captures the site's thumbnail in the background, then attemps to show the thumbnail.
    *
    * @param message
    *        A RemotePageManager message with the following data:
@@ -317,14 +304,61 @@ let AboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  pageThumbs: function(message) {
-    let uri = PageThumbsStorage.getFilePathForURL(message.data.link.url);
+  captureBackgroundPageThumb: Task.async(function* (message) {
+    try {
+      yield BackgroundPageThumbs.captureIfMissing(message.data.link.url);
+      this.createPageThumb(message);
+    } catch (err) {
+      var msg = `Cannot capture background page thumbs. `;
+      dump("error: " + err);
+    }
+  }),
+
+  /**
+   * Creates the thumbnail to display for each site based on the unique URL
+   * of the site and it's type (regular or enhanced). If the thumbnail is of
+   * type "regular", we create a blob and send that down to the child. If the
+   * thumbnail is of type "enhanced", get the file path for the URL and create
+   * and enhanced URI that will be sent down to the child.
+   *
+   * @param message
+   *        A RemotePageManager message with the following data:
+   *
+   *        link (Object):
+   *          A link object that contains:
+   *
+   *          baseDomain (String)
+   *          blockState (Boolean)
+   *          frecency (Integer)
+   *          lastVisiteDate (Integer)
+   *          pinState (Boolean)
+   *          title (String)
+   *          type (String)
+   *          url (String)
+   */
+  createPageThumb: function (message) {
+    let imgSrc = PageThumbs.getThumbnailURL(message.data.link.url);
+    let doc = Services.appShell.hiddenDOMWindow.document;
+    let img = doc.createElementNS(XHTML_NAMESPACE, "img");
+    let canvas = doc.createElementNS(XHTML_NAMESPACE, "canvas");
     let enhanced = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
-    this.pageListener.sendAsyncMessage("NewTab:ThumbnailURI", {
-      uri,
-      enhanced,
-      url: message.data.link.url,
-    });
+
+    img.onload = function (e) {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(this, 0, 0, this.naturalWidth, this.naturalHeight);
+      canvas.toBlob(function (blob) {
+        let host = new URL(message.data.link.url).host;
+        AboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
+          thumbPath: "/pagethumbs/" + host,
+          enhanced,
+          url: message.data.link.url,
+          blob,
+        });
+      });
+    };
+    img.src = imgSrc;
   },
 
   /**

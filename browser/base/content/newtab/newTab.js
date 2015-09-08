@@ -9,7 +9,7 @@
     utils: Cu,
     interfaces: Ci
   } = Components;
-  const TRUSTED_ORIGIN = "https://mozilla.github.io";
+  const TRUSTED_ORIGIN = "http://localhost:8000";
   const {
     XPCOMUtils
   } = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
