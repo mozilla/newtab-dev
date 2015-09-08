@@ -48,7 +48,7 @@ let AboutNewTab = {
     this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
     this.pageListener.addMessageListener("NewTab:UndoAll", this.undoAll.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs", this.captureBackgroundPageThumb.bind(this));
-    this.pageListener.addMessageListener("NewTab:PageThumbs", this.pageThumbs.bind(this));
+    this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
