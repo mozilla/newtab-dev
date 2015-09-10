@@ -9,7 +9,6 @@
     utils: Cu,
     interfaces: Ci
   } = Components;
-  const TRUSTED_ORIGIN = "https://mozilla.github.io";
   const {
     XPCOMUtils
   } = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
@@ -18,8 +17,12 @@
     "resource://gre/modules/PrivateBrowsingUtils.jsm");
   XPCOMUtils.defineLazyModuleGetter(imports, "Services",
     "resource://gre/modules/Services.jsm");
+  XPCOMUtils.defineLazyModuleGetter(imports, "RemoteNewTabLocation",
+    "resource:///modules/RemoteNewTabLocation.jsm");
 
   let iframe;
+  const TRUSTED_ORIGIN = imports.RemoteNewTabLocation.origin;
+  const REMOTE_PAGE_LOCATION = imports.RemoteNewTabLocation.href;
 
   function handleCommand(command, data) {
     let commandHandled = true;
@@ -43,6 +46,8 @@
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
     let iframe = getIframe();
+    iframe.setAttribute("src", REMOTE_PAGE_LOCATION);
+
     let loadHandler = () => {
       iframe.removeEventListener("load", loadHandler);
       iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
