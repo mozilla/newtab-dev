@@ -21,8 +21,6 @@
     "resource:///modules/RemoteNewTabLocation.jsm");
 
   let iframe;
-  const TRUSTED_ORIGIN = imports.RemoteNewTabLocation.origin;
-  const REMOTE_PAGE_LOCATION = imports.RemoteNewTabLocation.href;
 
   function handleCommand(command, data) {
     let commandHandled = true;
@@ -46,7 +44,7 @@
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
     let iframe = getIframe();
-    iframe.setAttribute("src", REMOTE_PAGE_LOCATION);
+    iframe.src = imports.RemoteNewTabLocation.href;
 
     let loadHandler = () => {
       iframe.removeEventListener("load", loadHandler);
@@ -73,7 +71,7 @@
     // onto the iframe
     addMessageListener(event, (message) => {
       let iframe = getIframe();
-      iframe.contentWindow.postMessage(message, TRUSTED_ORIGIN);
+      iframe.contentWindow.postMessage(message, imports.RemoteNewTabLocation.origin);
     });
   }
 
@@ -94,7 +92,7 @@
     iframe.contentWindow.postMessage({
       name: "NewTab:State",
       data: state
-    }, TRUSTED_ORIGIN);
+    }, imports.RemoteNewTabLocation.origin);
   }
 
   function getIframe() {
