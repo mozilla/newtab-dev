@@ -10,20 +10,12 @@
  */
 let gUpdater = {
   /**
-   * Set up message listener to fetch links when the grid needs to be updated.
-   */
-  init: function Updater_init() {
-    addMessageListener("NewTab:UpdateLinks", this.updateGrid.bind(this));
-  },
-
-  /**
    * Updates the current grid according to its pinned and blocked sites.
    * This removes old, moves existing and creates new sites to fill gaps.
-   * @param aLinks The links sent down by the parent process
+   * @param aCallback The callback to call when finished.
    */
-  updateGrid: function Updater_updateGrid(aLinks) {
-    let links = aLinks.data.links.slice(0, gGrid.cells.length);
-    let enhancedLinks = aLinks.data.enhancedLinks;
+  updateGrid: function Updater_updateGrid(aCallback) {
+    let links = gLinks.getLinks().slice(0, gGrid.cells.length);
 
     // Find all sites that remain in the grid.
     let sites = this._findRemainingSites(links);
@@ -41,21 +33,14 @@ let gUpdater = {
 
       // Now it's time to animate the sites actually moving to their new
       // positions.
-      this._rearrangeSites(sites, (aCallback) => {
+      this._rearrangeSites(sites, () => {
         // Try to fill empty cells and finish.
-        this._fillEmptyCells(links, aCallback, enhancedLinks);
+        this._fillEmptyCells(links, aCallback);
+
+        // Update other pages that might be open to keep them synced.
+        gAllPages.update(gPage);
       });
     });
-
-    let event = new CustomEvent("AboutNewTabUpdated", {bubbles: true});
-    document.dispatchEvent(event);
-  },
-
-  /**
-   * Sends a message to update the grid.
-   */
-  sendUpdate: function Updater_sendUpdate() {
-    sendAsyncMessage("NewTab:UpdateGrid");
   },
 
   /**
@@ -166,9 +151,8 @@ let gUpdater = {
    * Tries to fill empty cells with new links if available.
    * @param aLinks The array of links.
    * @param aCallback The callback to call when finished.
-   * @param aEnhancedLinks The set of enhanced links (if any).
    */
-  _fillEmptyCells: function Updater_fillEmptyCells(aLinks, aCallback, aEnhancedLinks) {
+  _fillEmptyCells: function Updater_fillEmptyCells(aLinks, aCallback) {
     let {cells, sites} = gGrid;
 
     // Find empty cells and fill them.
@@ -178,8 +162,7 @@ let gUpdater = {
 
       return new Promise(resolve => {
         // Create the new site and fade it in.
-        let isEnhanced = aEnhancedLinks[aIndex] ? true : false;
-        let site = gGrid.createSite(aLinks[aIndex], cells[aIndex], isEnhanced);
+        let site = gGrid.createSite(aLinks[aIndex], cells[aIndex]);
 
         // Set the site's initial opacity to zero.
         site.node.style.opacity = 0;
@@ -192,5 +175,3 @@ let gUpdater = {
     })).then(aCallback).catch(console.exception);
   }
 };
-
-gUpdater.init();

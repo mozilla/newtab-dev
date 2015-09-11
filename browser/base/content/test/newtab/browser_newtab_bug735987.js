@@ -4,7 +4,6 @@
 function runTests() {
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("");
-  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8");
@@ -23,12 +22,11 @@ function runTests() {
   NewTabUtils.blockedLinks.resetCache();
 
   // Update all open pages, e.g. preloaded ones.
-  AboutNewTab.updateTest(gWindow.gBrowser);
+  NewTabUtils.allPages.update();
 
   yield addNewTabPageTab();
   checkGrid("0,99p,1,2,3,4,5,6,7");
 
   yield blockCell(1);
-  yield whenPagesUpdated();
   checkGrid("0,1,2,3,4,5,6,7,8");
 }

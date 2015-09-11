@@ -43,6 +43,12 @@ XPCOMUtils.defineLazyGetter(this, "gUnicodeConverter", function () {
 const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
 const PREF_NEWTAB_ENHANCED = "browser.newtabpage.enhanced";
 
+// The preference that tells the number of rows of the newtab grid.
+const PREF_NEWTAB_ROWS = "browser.newtabpage.rows";
+
+// The preference that tells the number of columns of the newtab grid.
+const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
+
 // The maximum number of results PlacesProvider retrieves from history.
 const HISTORY_RESULTS_LIMIT = 100;
 
@@ -188,6 +194,10 @@ LinksStorage.prototype = {
  * Singleton that serves as a registry for all open 'New Tab Page's.
  */
 let AllPages = {
+  /**
+   * The array containing all active pages.
+   */
+  _pages: [],
 
   /**
    * Cached value that tells whether the New Tab Page feature is enabled.
@@ -198,6 +208,25 @@ let AllPages = {
    * Cached value that tells whether the New Tab Page feature is enhanced.
    */
   _enhanced: null,
+
+  /**
+   * Adds a page to the internal list of pages.
+   * @param aPage The page to register.
+   */
+  register: function AllPages_register(aPage) {
+    this._pages.push(aPage);
+    this._addObserver();
+  },
+
+  /**
+   * Removes a page from the internal list of pages.
+   * @param aPage The page to unregister.
+   */
+  unregister: function AllPages_unregister(aPage) {
+    let index = this._pages.indexOf(aPage);
+    if (index > -1)
+      this._pages.splice(index, 1);
+  },
 
   /**
    * Returns whether the 'New Tab Page' is enabled.
@@ -234,7 +263,118 @@ let AllPages = {
     if (this.enhanced != aEnhanced)
       Services.prefs.setBoolPref(PREF_NEWTAB_ENHANCED, !!aEnhanced);
   },
+
+  /**
+   * Returns the number of registered New Tab Pages (i.e. the number of open
+   * about:newtab instances).
+   */
+  get length() {
+    return this._pages.length;
+  },
+
+  /**
+   * Updates all currently active pages but the given one.
+   * @param aExceptPage The page to exclude from updating.
+   * @param aReason The reason for updating all pages.
+   */
+  update(aExceptPage, aReason = "") {
+    for (let page of this._pages.slice()) {
+      if (aExceptPage != page) {
+        page.update(aReason);
+      }
+    }
+  },
+
+  /**
+   * Implements the nsIObserver interface to get notified when the preference
+   * value changes or when a new copy of a page thumbnail is available.
+   */
+  observe: function AllPages_observe(aSubject, aTopic, aData) {
+    if (aTopic == "nsPref:changed") {
+      // Clear the cached value.
+      switch (aData) {
+        case PREF_NEWTAB_ENABLED:
+          this._enabled = null;
+          break;
+        case PREF_NEWTAB_ENHANCED:
+          this._enhanced = null;
+          break;
+      }
+    }
+    // and all notifications get forwarded to each page.
+    this._pages.forEach(function (aPage) {
+      aPage.observe(aSubject, aTopic, aData);
+    }, this);
+  },
+
+  /**
+   * Adds a preference and new thumbnail observer and turns itself into a
+   * no-op after the first invokation.
+   */
+  _addObserver: function AllPages_addObserver() {
+    Services.prefs.addObserver(PREF_NEWTAB_ENABLED, this, true);
+    Services.prefs.addObserver(PREF_NEWTAB_ENHANCED, this, true);
+    Services.obs.addObserver(this, "page-thumbnail:create", true);
+    this._addObserver = function () {};
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference])
 };
+
+/**
+ * Singleton that keeps Grid preferences
+ */
+let GridPrefs = {
+  /**
+   * Cached value that tells the number of rows of newtab grid.
+   */
+  _gridRows: null,
+  get gridRows() {
+    if (!this._gridRows) {
+      this._gridRows = Math.max(1, Services.prefs.getIntPref(PREF_NEWTAB_ROWS));
+    }
+
+    return this._gridRows;
+  },
+
+  /**
+   * Cached value that tells the number of columns of newtab grid.
+   */
+  _gridColumns: null,
+  get gridColumns() {
+    if (!this._gridColumns) {
+      this._gridColumns = Math.max(1, Services.prefs.getIntPref(PREF_NEWTAB_COLUMNS));
+    }
+
+    return this._gridColumns;
+  },
+
+
+  /**
+   * Initializes object. Adds a preference observer
+   */
+  init: function GridPrefs_init() {
+    Services.prefs.addObserver(PREF_NEWTAB_ROWS, this, false);
+    Services.prefs.addObserver(PREF_NEWTAB_COLUMNS, this, false);
+  },
+
+  /**
+   * Implements the nsIObserver interface to get notified when the preference
+   * value changes.
+   */
+  observe: function GridPrefs_observe(aSubject, aTopic, aData) {
+    if (aData == PREF_NEWTAB_ROWS) {
+      this._gridRows = null;
+    } else {
+      this._gridColumns = null;
+    }
+
+    AllPages.update();
+  }
+};
+
+GridPrefs.init();
 
 /**
  * Singleton that keeps track of all pinned links and their positions in the
@@ -265,12 +405,14 @@ let PinnedLinks = {
     // Clear the link's old position, if any.
     this.unpin(aLink);
 
-    // change pinned link into a history link and update pin state
-    this._makeHistoryLink(aLink);
+    // change pinned link into a history link
+    // update all pages on link change
+    let updatePages = this._makeHistoryLink(aLink);
     this.links[aIndex] = aLink;
-    this.links[aIndex].pinState = true;
     this.save();
-    aLink.pinState = true;
+    if (updatePages) {
+      AllPages.update();
+    }
   },
 
   /**
@@ -289,7 +431,6 @@ let PinnedLinks = {
       i--;
     links.splice(i +1);
     this.save();
-    aLink.pinState = false;
   },
 
   /**
@@ -404,7 +545,6 @@ let BlockedLinks = {
 
     // Make sure we unpin blocked links.
     PinnedLinks.unpin(aLink);
-    aLink.blockState = true;
   },
 
   /**
@@ -417,7 +557,6 @@ let BlockedLinks = {
       this.save();
       this._callObservers("onLinkUnblocked", aLink);
     }
-    aLink.blockState = false;
   },
 
   /**
@@ -714,11 +853,6 @@ let Links = {
   _observers: [],
 
   /**
-   * The reason to update the pages.
-   */
-  _reason: null,
-
-  /**
    * Registers an object that will be notified when links updates.
    */
   addObserver: function (aObserver) {
@@ -779,6 +913,8 @@ let Links = {
           executeCallbacks();
       }, aForce);
     }
+
+    this._addObserver();
   },
 
   /**
@@ -817,8 +953,6 @@ let Links = {
     for (let link of pinnedLinks) {
       if (link) {
         link.baseDomain = NewTabUtils.extractSite(link.url);
-        link.pinState = PinnedLinks.isPinned(link);
-        link.blockState = BlockedLinks.isBlocked(link);
       }
     }
     return pinnedLinks;
@@ -1087,8 +1221,9 @@ let Links = {
       }
       updatePages = true;
     }
+
     if (updatePages) {
-      this._reason = "links-changed";
+      AllPages.update(null, "links-changed");
     }
   },
 
@@ -1097,7 +1232,7 @@ let Links = {
    */
   onManyLinksChanged: function Links_onManyLinksChanged(aProvider) {
     this._populateProviderCache(aProvider, () => {
-      this._reason = "links-changed";
+      AllPages.update(null, "links-changed");
     }, true);
   },
 
@@ -1113,6 +1248,19 @@ let Links = {
     return BinarySearch[aMethod](this.compareLinks, aArray, aLink);
   },
 
+  /**
+   * Implements the nsIObserver interface to get notified about browser history
+   * sanitization.
+   */
+  observe: function Links_observe(aSubject, aTopic, aData) {
+    // Make sure to update open about:newtab instances. If there are no opened
+    // pages we can just wait for the next new tab to populate the cache again.
+    if (AllPages.length && AllPages.enabled)
+      this.populateCache(function () { AllPages.update() }, true);
+    else
+      this.resetCache();
+  },
+
   _callObservers(methodName, ...args) {
     for (let obs of this._observers) {
       if (typeof(obs[methodName]) == "function") {
@@ -1124,6 +1272,18 @@ let Links = {
       }
     }
   },
+
+  /**
+   * Adds a sanitization observer and turns itself into a no-op after the first
+   * invokation.
+   */
+  _addObserver: function Links_addObserver() {
+    Services.obs.addObserver(this, "browser:purge-session-history", true);
+    this._addObserver = function () {};
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference])
 };
 
 Links.compareLinks = Links.compareLinks.bind(Links);
@@ -1300,7 +1460,9 @@ this.NewTabUtils = {
     PinnedLinks.resetCache();
     BlockedLinks.resetCache();
 
-    Links.populateCache(function () {}, true);
+    Links.populateCache(function () {
+      AllPages.update();
+    }, true);
   },
 
   /**
@@ -1320,5 +1482,6 @@ this.NewTabUtils = {
   linkChecker: LinkChecker,
   pinnedLinks: PinnedLinks,
   blockedLinks: BlockedLinks,
+  gridPrefs: GridPrefs,
   placesProvider: PlacesProvider
 };

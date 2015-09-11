@@ -18,7 +18,6 @@ function runTests() {
   // drag a new site onto the very first cell
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",,,,,,,7,8");
-  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7p,8p");
@@ -30,7 +29,6 @@ function runTests() {
   // pushed out
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",,,,,,,7,8");
-  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7p,8p");
@@ -44,7 +42,6 @@ function runTests() {
   // not moved
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",,,,,,,,8");
-  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8p");
@@ -56,7 +53,6 @@ function runTests() {
   // around accordingly
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("0,1,2,,,,,,");
-  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0p,1p,2p");

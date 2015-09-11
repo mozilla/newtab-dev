@@ -94,8 +94,7 @@ let gCustomize = {
         }
         break;
       case "newtab-customize-enhanced":
-        let enhanced = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
-        sendAsyncMessage("NewTab:Customize", {enabled: true, enhanced: !enhanced});
+        sendAsyncMessage("NewTab:Customize", {enabled: true, enhanced: !gAllPages.enhanced});
         break;
       case "newtab-customize-learn":
         this.showLearn();
@@ -115,8 +114,7 @@ let gCustomize = {
   },
 
   updateSelected: function() {
-    let enhanced = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
-    let enabled = Services.prefs.getBoolPref("browser.newtabpage.enabled");
+    let {enabled, enhanced} = gAllPages;
     let selected = enabled ? enhanced ? "enhanced" : "classic" : "blank";
     ["enhanced", "classic", "blank"].forEach(id => {
       let node = this._nodes[id];

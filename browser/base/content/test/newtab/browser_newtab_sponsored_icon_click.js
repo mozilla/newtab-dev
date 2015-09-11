@@ -3,7 +3,6 @@
 
 function runTests() {
   yield setLinks("0");
-  yield whenPagesUpdated();
   yield addNewTabPageTab();
 
   let site = getCell(0).node.querySelector(".newtab-site");

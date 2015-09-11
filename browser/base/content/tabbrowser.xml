@@ -4365,11 +4365,6 @@
           let uri = browser.currentURI;
           let icon = browser.mIconURL;
 
-          if (browser == this._preloadedBrowser) {
-            this._preloadedBrowser = null;
-            return;
-          }
-
           this.updateBrowserRemotenessByURL(browser, "about:tabcrashed");
 
           browser.setAttribute("crashedPageTitle", title);

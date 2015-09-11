@@ -8,12 +8,11 @@
  * This class represents a site that is contained in a cell and can be pinned,
  * moved around or deleted.
  */
-function Site(aNode, aLink, aEnhanced) {
+function Site(aNode, aLink) {
   this._node = aNode;
   this._node._newtabSite = this;
 
   this._link = aLink;
-  this._enhancedLink = aEnhanced;
 
   this._render();
   this._addEventHandlers();
@@ -56,17 +55,18 @@ Site.prototype = {
     if (typeof aIndex == "undefined")
       aIndex = this.cell.index;
 
-    sendAsyncMessage("NewTab:PinLink", {link: this._link, index: aIndex});
     this._updateAttributes(true);
+    gPinnedLinks.pin(this._link, aIndex);
   },
 
   /**
-   * Unpins the site.
+   * Unpins the site and calls the given callback when done.
    */
   unpin: function Site_unpin() {
     if (this.isPinned()) {
-      sendAsyncMessage("NewTab:UnpinLink", {link: this._link});
       this._updateAttributes(false);
+      gPinnedLinks.unpin(this._link);
+      gUpdater.updateGrid();
     }
   },
 
@@ -75,25 +75,19 @@ Site.prototype = {
    * @return Whether this site is pinned.
    */
   isPinned: function Site_isPinned() {
-    return this._link.pinState;
+    return gPinnedLinks.isPinned(this._link);
   },
 
   /**
-   * Blocks the site (removes it from the grid).
+   * Blocks the site (removes it from the grid) and calls the given callback
+   * when done.
    */
   block: function Site_block() {
-    if (!this.isBlocked()) {
+    if (!gBlockedLinks.isBlocked(this._link)) {
       gUndoDialog.show(this);
-      sendAsyncMessage("NewTab:BlockLink", {link: this._link});
+      gBlockedLinks.block(this._link);
+      gUpdater.updateGrid();
     }
-  },
-
-  /**
-   * Checks whether this site is blocked.
-   * @return Whether this site is blocked.
-   */
-  isBlocked: function Site_isBlocked() {
-    return this._link.blockState;
   },
 
   /**
@@ -157,7 +151,7 @@ Site.prototype = {
        delete this.link.endTime;
        // clear enhanced-content image that may still exist in preloaded page
        this._querySelector(".enhanced-content").style.backgroundImage = "";
-       sendAsyncMessage("NewTab:ReplacePinLink", {oldUrl, link: this.link});
+       gPinnedLinks.replace(oldUrl, this.link);
     }
   },
 
@@ -167,11 +161,11 @@ Site.prototype = {
   _render: function Site_render() {
     // first check for end time, as it may modify the link
     this._checkLinkEndTime();
-    // set up display variables
-    let enhanced = this.link;
+    // setup display variables
+    let enhanced = gAllPages.enhanced && DirectoryLinksProvider.getEnhancedLink(this.link);
     let url = this.url;
-    let title = enhanced && enhanced.title && this._enhancedLink ? enhanced.title :
-                this.link.type == "history" && !this._enhancedLink ? this.link.baseDomain :
+    let title = enhanced && enhanced.title ? enhanced.title :
+                this.link.type == "history" ? this.link.baseDomain :
                 this.title;
     let tooltip = (this.title == url ? this.title : this.title + "\n" + url);
 
@@ -228,7 +222,7 @@ Site.prototype = {
    */
   captureIfMissing: function Site_captureIfMissing() {
     if (!document.hidden && !this.link.imageURI) {
-      sendAsyncMessage("NewTab:BackgroundPageThumbs", {url: this.url});
+      BackgroundPageThumbs.captureIfMissing(this.url);
     }
   },
 
@@ -236,24 +230,16 @@ Site.prototype = {
    * Refreshes the thumbnail for the site.
    */
   refreshThumbnail: function Site_refreshThumbnail() {
-    sendAsyncMessage("NewTab:PageThumbs", {link: this.link});
-  },
-
-  /**
-   * Render the correct thumbnail for the site.
-   * @param aData Contains enhanced links and the URI generated from the
-   *        current URL.
-   */
-  _getURI: function Site_getURI(aData) {
     // Only enhance tiles if that feature is turned on
-    let link = aData.data.enhanced && this.link;
+    let link = gAllPages.enhanced && DirectoryLinksProvider.getEnhancedLink(this.link) ||
+               this.link;
 
     let thumbnail = this._querySelector(".newtab-thumbnail");
     if (link.bgColor) {
       thumbnail.style.backgroundColor = link.bgColor;
     }
 
-    let uri = this.link.imageURI || ("file://" + aData.data.uri);
+    let uri = link.imageURI || PageThumbs.getThumbnailURL(this.url);
     thumbnail.style.backgroundImage = 'url("' + uri + '")';
 
     if (link.enhancedImageURI) {
@@ -391,7 +377,7 @@ Site.prototype = {
 
     // Report all link click actions
     if (action) {
-      sendAsyncMessage("NewTab:ReportSitesAction", {length: gGrid.cells.length, action, index: tileIndex});
+      DirectoryLinksProvider.reportSitesAction(gGrid.sites, action, tileIndex);
     }
   },
 

@@ -5,8 +5,6 @@ const PREF_NEWTAB_ROWS = "browser.newtabpage.rows";
 const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
 
 function runTests() {
-  yield addNewTabPageTab();
-  yield whenPagesUpdated();
   let testValues = [
     {row: 0, column: 0},
     {row: -1, column: -1},
@@ -35,7 +33,6 @@ function runTests() {
     Services.prefs.setIntPref(PREF_NEWTAB_ROWS, testValues[i].row);
     Services.prefs.setIntPref(PREF_NEWTAB_COLUMNS, testValues[i].column);
 
-    yield whenPagesUpdated();
     existingTabGridLength = getGrid().cells.length;
     is(existingTabGridLength, expectedValues[i],
       "Existing page grid is updated correctly.");
@@ -53,7 +50,8 @@ function runTests() {
     yield waitForCondition(() => !doc.hidden).then(TestRunner.next);
   }
 
+  gBrowser.removeTab(existingTab);
+
   Services.prefs.clearUserPref(PREF_NEWTAB_ROWS);
   Services.prefs.clearUserPref(PREF_NEWTAB_COLUMNS);
-
 }

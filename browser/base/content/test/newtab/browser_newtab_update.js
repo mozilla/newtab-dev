@@ -7,8 +7,6 @@
  * Checks that newtab is updated as its links change.
  */
 function runTests() {
-   yield addNewTabPageTab();
-
   // First, start with an empty page.  setLinks will trigger a hidden page
   // update because it calls clearHistory.  We need to wait for that update to
   // happen so that the next time we wait for a page update below, we catch the
@@ -18,7 +16,6 @@ function runTests() {
   // Strategy: Add some visits, open a new page, check the grid, repeat.
   yield fillHistoryAndWaitForPageUpdate([1]);
   yield addNewTabPageTab();
-  yield customizeNewTabPage("enhanced");
   checkGrid("1,,,,,,,,");
 
   yield fillHistoryAndWaitForPageUpdate([2]);

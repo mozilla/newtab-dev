@@ -6,9 +6,6 @@
  * decides not to use it.
  */
 function runTests() {
-  yield addNewTabPageTab();
-  yield whenPagesUpdated();
-
   // create a new tab page and hide it.
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("");
@@ -19,7 +16,6 @@ function runTests() {
   ok(!gridNode.hasAttribute("page-disabled"), "page is not disabled");
 
   NewTabUtils.allPages.enabled = false;
-  yield whenPagesUpdated();
   ok(gridNode.hasAttribute("page-disabled"), "page is disabled");
 
   let oldGridNode = gridNode;
@@ -33,7 +29,6 @@ function runTests() {
   is(0, getContentDocument().querySelectorAll(".site").length, "no sites have been rendered");
 
   NewTabUtils.allPages.enabled = true;
-  yield whenPagesUpdated();
   ok(!gridNode.hasAttribute("page-disabled"), "page is not disabled");
   ok(!oldGridNode.hasAttribute("page-disabled"), "old page is not disabled");
 }

@@ -9,11 +9,12 @@ XPCSHELL_TESTS_MANIFESTS += [
 ]
 
 EXTRA_JS_MODULES += [
-    'AboutNewTab.jsm',
-    'DirectoryLinksProvider.jsm',
     'NewTabURL.jsm',
     'PlacesProvider.jsm',
+    'RemoteAboutNewTab.jsm',
+    'RemoteDirectoryLinksProvider.jsm',
     'RemoteNewTabLocation.jsm',
+    'RemoteNewTabUtils.jsm',
 ]
 
 if CONFIG['MOZILLA_OFFICIAL']:

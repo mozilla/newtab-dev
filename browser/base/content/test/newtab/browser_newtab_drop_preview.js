@@ -13,7 +13,6 @@ function runTests() {
   setPinnedLinks("0,1,2,,,5");
 
   yield addNewTabPageTab();
-  yield customizeNewTabPage("enhanced"); // Toggle enhanced on
   checkGrid("0p,1p,2p,3,4,5p,6,7,8");
 
   let cw = getContentWindow();

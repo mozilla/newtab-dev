@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["DirectoryLinksProvider"];
+this.EXPORTED_SYMBOLS = ["RemoteDirectoryLinksProvider"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -20,8 +20,8 @@ Cu.import("resource://gre/modules/Timer.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
-  "resource://gre/modules/NewTabUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabUtils",
+  "resource:///modules/RemoteNewTabUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
   "resource://gre/modules/osfile.jsm")
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
@@ -282,7 +282,7 @@ const INADJACENCY_SOURCE = "chrome://browser/content/newtab/newTab.inadjacent.js
  * Directory links are a hard-coded set of links shown if a user's link
  * inventory is empty.
  */
-let DirectoryLinksProvider = {
+let RemoteDirectoryLinksProvider = {
 
   __linksURL: null,
 
@@ -386,7 +386,7 @@ let DirectoryLinksProvider = {
   /**
    * Set appropriate default ping behavior controlled by enhanced pref
    */
-  _setDefaultEnhanced: function DirectoryLinksProvider_setDefaultEnhanced() {
+  _setDefaultEnhanced: function RemoteDirectoryLinksProvider_setDefaultEnhanced() {
     if (!Services.prefs.prefHasUserValue(PREF_NEWTAB_ENHANCED)) {
       let enhanced = Services.prefs.getBoolPref(PREF_NEWTAB_ENHANCED);
       try {
@@ -400,7 +400,7 @@ let DirectoryLinksProvider = {
     }
   },
 
-  observe: function DirectoryLinksProvider_observe(aSubject, aTopic, aData) {
+  observe: function RemoteDirectoryLinksProvider_observe(aSubject, aTopic, aData) {
     if (aTopic == "nsPref:changed") {
       switch (aData) {
         // Re-set the default in case the user clears the pref
@@ -421,14 +421,14 @@ let DirectoryLinksProvider = {
     }
   },
 
-  _addPrefsObserver: function DirectoryLinksProvider_addObserver() {
+  _addPrefsObserver: function RemoteDirectoryLinksProvider_addObserver() {
     for (let pref in this._observedPrefs) {
       let prefName = this._observedPrefs[pref];
       Services.prefs.addObserver(prefName, this, false);
     }
   },
 
-  _removePrefsObserver: function DirectoryLinksProvider_removeObserver() {
+  _removePrefsObserver: function RemoteDirectoryLinksProvider_removeObserver() {
     for (let pref in this._observedPrefs) {
       let prefName = this._observedPrefs[pref];
       Services.prefs.removeObserver(prefName, this);
@@ -449,7 +449,7 @@ let DirectoryLinksProvider = {
     }
   },
 
-  _fetchAndCacheLinks: function DirectoryLinksProvider_fetchAndCacheLinks(uri) {
+  _fetchAndCacheLinks: function RemoteDirectoryLinksProvider_fetchAndCacheLinks(uri) {
     // Replace with the same display locale used for selecting links data
     uri = uri.replace("%LOCALE%", this.locale);
     uri = uri.replace("%CHANNEL%", UpdateChannel.get());
@@ -464,7 +464,7 @@ let DirectoryLinksProvider = {
    * @param download uri
    * @return promise resolved to json string, "{}" returned if status != 200
    */
-  _downloadJsonData: function DirectoryLinksProvider__downloadJsonData(uri) {
+  _downloadJsonData: function RemoteDirectoryLinksProvider__downloadJsonData(uri) {
     let deferred = Promise.defer();
     let xmlHttp = this._newXHR();
 
@@ -498,7 +498,7 @@ let DirectoryLinksProvider = {
    * Downloads directory links if needed
    * @return promise resolved immediately if no download needed, or upon completion
    */
-  _fetchAndCacheLinksIfNecessary: function DirectoryLinksProvider_fetchAndCacheLinksIfNecessary(forceDownload=false) {
+  _fetchAndCacheLinksIfNecessary: function RemoteDirectoryLinksProvider_fetchAndCacheLinksIfNecessary(forceDownload=false) {
     if (this._downloadDeferred) {
       // fetching links already - just return the promise
       return this._downloadDeferred.promise;
@@ -549,7 +549,7 @@ let DirectoryLinksProvider = {
    *         each containing a valid list of links,
    *         or {'directory': [], 'suggested': []} if read or parse fails.
    */
-  _readDirectoryLinksFile: function DirectoryLinksProvider_readDirectoryLinksFile() {
+  _readDirectoryLinksFile: function RemoteDirectoryLinksProvider_readDirectoryLinksFile() {
     let emptyOutput = {directory: [], suggested: [], enhanced: []};
     return OS.File.read(this._directoryFilePath).then(binaryData => {
       let output;
@@ -575,7 +575,7 @@ let DirectoryLinksProvider = {
    * Translates link.time_limits to UTC miliseconds and sets
    * link.startTime and link.endTime properties in link object
    */
-  _setupStartEndTime: function DirectoryLinksProvider_setupStartEndTime(link) {
+  _setupStartEndTime: function RemoteDirectoryLinksProvider_setupStartEndTime(link) {
     // set start/end limits. Use ISO_8601 format: '2014-01-10T20:20:20.600Z'
     // (details here http://en.wikipedia.org/wiki/ISO_8601)
     // Note that if timezone is missing, FX will interpret as local time
@@ -604,7 +604,7 @@ let DirectoryLinksProvider = {
   /*
    * Handles campaign timeout
    */
-  _onCampaignTimeout: function DirectoryLinksProvider_onCampaignTimeout() {
+  _onCampaignTimeout: function RemoteDirectoryLinksProvider_onCampaignTimeout() {
     // _campaignTimeoutID is invalid here, so just set it to null
     this._campaignTimeoutID = null;
     this._updateSuggestedTile();
@@ -613,7 +613,7 @@ let DirectoryLinksProvider = {
   /*
    * Clears capmpaign timeout
    */
-  _clearCampaignTimeout: function DirectoryLinksProvider_clearCampaignTimeout() {
+  _clearCampaignTimeout: function RemoteDirectoryLinksProvider_clearCampaignTimeout() {
     if (this._campaignTimeoutID) {
       clearTimeout(this._campaignTimeoutID);
       this._campaignTimeoutID = null;
@@ -625,7 +625,7 @@ let DirectoryLinksProvider = {
    * reaching soonest start or end time for the campaign
    * @param timeout in milliseconds
    */
-  _setupCampaignTimeCheck: function DirectoryLinksProvider_setupCampaignTimeCheck(timeout) {
+  _setupCampaignTimeCheck: function RemoteDirectoryLinksProvider_setupCampaignTimeCheck(timeout) {
     // sanity check
     if (!timeout || timeout <= 0) {
       return;
@@ -642,7 +642,7 @@ let DirectoryLinksProvider = {
    * @param link
    * @return object {use: true or false, timeoutDate: milliseconds or null}
    */
-  _testLinkForCampaignTimeLimits: function DirectoryLinksProvider_testLinkForCampaignTimeLimits(link) {
+  _testLinkForCampaignTimeLimits: function RemoteDirectoryLinksProvider_testLinkForCampaignTimeLimits(link) {
     let currentTime = Date.now();
     // test for start time first
     if (link.startTime && link.startTime > currentTime) {
@@ -669,7 +669,7 @@ let DirectoryLinksProvider = {
    * @param triggeringSiteIndex optional Int index of the site triggering action
    * @return download promise
    */
-  reportSitesAction: function DirectoryLinksProvider_reportSitesAction(sites, action, triggeringSiteIndex) {
+  reportSitesAction: function RemoteDirectoryLinksProvider_reportSitesAction(sites, action, triggeringSiteIndex) {
     let pastImpressions;
     // Check if the suggested tile was shown
     if (action == "view") {
@@ -761,10 +761,10 @@ let DirectoryLinksProvider = {
   /**
    * Get the enhanced link object for a link (whether history or directory)
    */
-  getEnhancedLink: function DirectoryLinksProvider_getEnhancedLink(link) {
+  getEnhancedLink: function RemoteDirectoryLinksProvider_getEnhancedLink(link) {
     // Use the provided link if it's already enhanced
     return link.enhancedImageURI && link ? link :
-           this._enhancedLinks.get(NewTabUtils.extractSite(link.url));
+           this._enhancedLinks.get(RemoteNewTabUtils.extractSite(link.url));
   },
 
   /**
@@ -818,7 +818,7 @@ let DirectoryLinksProvider = {
    * Gets the current set of directory links.
    * @param aCallback The function that the array of links is passed to.
    */
-  getLinks: function DirectoryLinksProvider_getLinks(aCallback) {
+  getLinks: function RemoteDirectoryLinksProvider_getLinks(aCallback) {
     this._readDirectoryLinksFile().then(rawLinks => {
       // Reset the cache of suggested tiles and enhanced images for this new set of links
       this._enhancedLinks.clear();
@@ -865,7 +865,7 @@ let DirectoryLinksProvider = {
 
         // Stash the enhanced image for the site
         if (link.enhancedImageURI) {
-          this._enhancedLinks.set(NewTabUtils.extractSite(link.url), link);
+          this._enhancedLinks.set(RemoteNewTabUtils.extractSite(link.url), link);
         }
       });
 
@@ -893,7 +893,7 @@ let DirectoryLinksProvider = {
     });
   },
 
-  init: function DirectoryLinksProvider_init() {
+  init: function RemoteDirectoryLinksProvider_init() {
     this._setDefaultEnhanced();
     this._addPrefsObserver();
     // setup directory file path and last download timestamp
@@ -905,8 +905,8 @@ let DirectoryLinksProvider = {
     // setup inadjacent sites URL
     this._inadjacentSitesUrl = INADJACENCY_SOURCE;
 
-    NewTabUtils.placesProvider.addObserver(this);
-    NewTabUtils.links.addObserver(this);
+    RemoteNewTabUtils.placesProvider.addObserver(this);
+    RemoteNewTabUtils.links.addObserver(this);
 
     return Task.spawn(function() {
       // get the last modified time of the links file if it exists
@@ -927,7 +927,7 @@ let DirectoryLinksProvider = {
   _handleManyLinksChanged: function() {
     this._topSitesWithSuggestedLinks.clear();
     this._suggestedLinks.forEach((suggestedLinks, site) => {
-      if (NewTabUtils.isTopPlacesSite(site)) {
+      if (RemoteNewTabUtils.isTopPlacesSite(site)) {
         this._topSitesWithSuggestedLinks.add(site);
       }
     });
@@ -940,16 +940,16 @@ let DirectoryLinksProvider = {
    * @return true if _topSitesWithSuggestedLinks was modified, false otherwise.
    */
   _handleLinkChanged: function(aLink) {
-    let changedLinkSite = NewTabUtils.extractSite(aLink.url);
+    let changedLinkSite = RemoteNewTabUtils.extractSite(aLink.url);
     let linkStored = this._topSitesWithSuggestedLinks.has(changedLinkSite);
 
-    if (!NewTabUtils.isTopPlacesSite(changedLinkSite) && linkStored) {
+    if (!RemoteNewTabUtils.isTopPlacesSite(changedLinkSite) && linkStored) {
       this._topSitesWithSuggestedLinks.delete(changedLinkSite);
       return true;
     }
 
     if (this._suggestedLinks.has(changedLinkSite) &&
-        NewTabUtils.isTopPlacesSite(changedLinkSite) && !linkStored) {
+        RemoteNewTabUtils.isTopPlacesSite(changedLinkSite) && !linkStored) {
       this._topSitesWithSuggestedLinks.add(changedLinkSite);
       return true;
     }
@@ -964,7 +964,7 @@ let DirectoryLinksProvider = {
   },
 
   _populatePlacesLinks: function () {
-    NewTabUtils.links.populateProviderCache(NewTabUtils.placesProvider, () => {
+    RemoteNewTabUtils.links.populateProviderCache(RemoteNewTabUtils.placesProvider, () => {
       this._handleManyLinksChanged();
     });
   },
@@ -986,7 +986,7 @@ let DirectoryLinksProvider = {
   },
 
   onLinkChanged: function (aProvider, aLink) {
-    // Make sure NewTabUtils.links handles the notification first.
+    // Make sure RemoteNewTabUtils.links handles the notification first.
     setTimeout(() => {
       if (this._handleLinkChanged(aLink) || this._shouldUpdateSuggestedTile()) {
         this._updateSuggestedTile();
@@ -995,7 +995,7 @@ let DirectoryLinksProvider = {
   },
 
   onManyLinksChanged: function () {
-    // Make sure NewTabUtils.links handles the notification first.
+    // Make sure RemoteNewTabUtils.links handles the notification first.
     setTimeout(() => {
       this._handleManyLinksChanged();
     }, 0);
@@ -1003,7 +1003,7 @@ let DirectoryLinksProvider = {
 
   _getCurrentTopSiteCount: function() {
     let visibleTopSiteCount = 0;
-    let newTabLinks = NewTabUtils.links.getLinks();
+    let newTabLinks = RemoteNewTabUtils.links.getLinks();
     for (let link of newTabLinks.slice(0, MIN_VISIBLE_HISTORY_TILES)) {
       // compute visibleTopSiteCount for suggested tiles
       if (link && (link.type == "history" || link.type == "enhanced")) {
@@ -1018,7 +1018,7 @@ let DirectoryLinksProvider = {
   },
 
   _shouldUpdateSuggestedTile: function() {
-    let sortedLinks = NewTabUtils.getProviderLinks(this);
+    let sortedLinks = RemoteNewTabUtils.getProviderLinks(this);
 
     let mostFrecentLink = {};
     if (sortedLinks && sortedLinks.length) {
@@ -1046,10 +1046,10 @@ let DirectoryLinksProvider = {
    * @return the chosen suggested tile, or undefined if there isn't one
    */
   _updateSuggestedTile: function() {
-    let sortedLinks = NewTabUtils.getProviderLinks(this);
+    let sortedLinks = RemoteNewTabUtils.getProviderLinks(this);
 
     if (!sortedLinks) {
-      // If NewTabUtils.links.resetCache() is called before getting here,
+      // If RemoteNewTabUtils.links.resetCache() is called before getting here,
       // sortedLinks may be undefined.
       return;
     }
@@ -1152,7 +1152,7 @@ let DirectoryLinksProvider = {
    * Loads inadjacent sites
    * @return a promise resolved when lookup Set for sites is built
    */
-  _loadInadjacentSites: function DirectoryLinksProvider_loadInadjacentSites() {
+  _loadInadjacentSites: function RemoteDirectoryLinksProvider_loadInadjacentSites() {
     return this._downloadJsonData(this._inadjacentSitesUrl).then(jsonString => {
       let jsonObject = {};
       try {
@@ -1171,7 +1171,7 @@ let DirectoryLinksProvider = {
    * @param value to hsh
    * @return hased value, base64-ed
    */
-  _generateHash: function DirectoryLinksProvider_generateHash(value) {
+  _generateHash: function RemoteDirectoryLinksProvider_generateHash(value) {
     let byteArr = gUnicodeConverter.convertToByteArray(value);
     gCryptoHash.init(gCryptoHash.MD5);
     gCryptoHash.update(byteArr, byteArr.length);
@@ -1183,8 +1183,8 @@ let DirectoryLinksProvider = {
    * @param link to check
    * @return true for inadjacent domains, false otherwise
    */
-  _isInadjacentLink: function DirectoryLinksProvider_isInadjacentLink(link) {
-    let baseDomain = link.baseDomain || NewTabUtils.extractSite(link.url || "");
+  _isInadjacentLink: function RemoteDirectoryLinksProvider_isInadjacentLink(link) {
+    let baseDomain = link.baseDomain || RemoteNewTabUtils.extractSite(link.url || "");
     if (!baseDomain) {
         return false;
     }
@@ -1194,11 +1194,11 @@ let DirectoryLinksProvider = {
 
   /**
    * Checks if new tab has inadjacent site
-   * @param new tab links (or nothing, in which case NewTabUtils.links.getLinks() is called
+   * @param new tab links (or nothing, in which case RemoteNewTabUtils.links.getLinks() is called
    * @return true if new tab shows has inadjacent site
    */
-  _checkForInadjacentSites: function DirectoryLinksProvider_checkForInadjacentSites(newTabLink) {
-    let links = newTabLink || NewTabUtils.links.getLinks();
+  _checkForInadjacentSites: function RemoteDirectoryLinksProvider_checkForInadjacentSites(newTabLink) {
+    let links = newTabLink || RemoteNewTabUtils.links.getLinks();
     for (let link of links.slice(0, MAX_VISIBLE_HISTORY_TILES)) {
       // check links against inadjacent list - specifically include ALL link types
       if (this._isInadjacentLink(link)) {
@@ -1239,7 +1239,7 @@ let DirectoryLinksProvider = {
    * Saves frequency cap object to file
    * @return a promise resolved upon file i/o completion
    */
-  _writeFrequencyCapFile: function DirectoryLinksProvider_writeFrequencyCapFile() {
+  _writeFrequencyCapFile: function RemoteDirectoryLinksProvider_writeFrequencyCapFile() {
     let json = JSON.stringify(this._frequencyCaps || {});
     return OS.File.writeAtomic(this._frequencyCapFilePath, json, {tmpPath: this._frequencyCapFilePath + ".tmp"});
   },
@@ -1248,7 +1248,7 @@ let DirectoryLinksProvider = {
    * Clears frequency cap object and writes empty json to file
    * @return a promise resolved upon file i/o completion
    */
-  _clearFrequencyCap: function DirectoryLinksProvider_clearFrequencyCap() {
+  _clearFrequencyCap: function RemoteDirectoryLinksProvider_clearFrequencyCap() {
     this._frequencyCaps = {};
     return this._writeFrequencyCapFile();
   },
@@ -1256,7 +1256,7 @@ let DirectoryLinksProvider = {
   /**
    * updates frequency cap configuration for a link
    */
-  _updateFrequencyCapSettings: function DirectoryLinksProvider_updateFrequencyCapSettings(link) {
+  _updateFrequencyCapSettings: function RemoteDirectoryLinksProvider_updateFrequencyCapSettings(link) {
     let capsObject = this._frequencyCaps[link.url];
     if (!capsObject) {
       // create an object with empty counts
@@ -1288,7 +1288,7 @@ let DirectoryLinksProvider = {
    *        will be removed. This is done to remove frequency cap objects
    *        for unused tile urls
    */
-  _pruneFrequencyCapUrls: function DirectoryLinksProvider_pruneFrequencyCapUrls(timeDelta = DEFAULT_PRUNE_TIME_DELTA) {
+  _pruneFrequencyCapUrls: function RemoteDirectoryLinksProvider_pruneFrequencyCapUrls(timeDelta = DEFAULT_PRUNE_TIME_DELTA) {
     let timeThreshold = Date.now() - timeDelta;
     Object.keys(this._frequencyCaps).forEach(url => {
       if (this._frequencyCaps[url].lastUpdated <= timeThreshold) {
@@ -1302,7 +1302,7 @@ let DirectoryLinksProvider = {
    * @param timestamp in milliseconds
    * @return true if the timestamp was made today, false otherwise
    */
-  _wasToday: function DirectoryLinksProvider_wasToday(timestamp) {
+  _wasToday: function RemoteDirectoryLinksProvider_wasToday(timestamp) {
     let showOn = new Date(timestamp);
     let today = new Date();
     // call timestamps identical if both day and month are same
@@ -1315,7 +1315,7 @@ let DirectoryLinksProvider = {
    * adds some number of views for a url
    * @param url String url of the suggested link
    */
-  _addFrequencyCapView: function DirectoryLinksProvider_addFrequencyCapView(url) {
+  _addFrequencyCapView: function RemoteDirectoryLinksProvider_addFrequencyCapView(url) {
     let capObject = this._frequencyCaps[url];
     // sanity check
     if (!capObject) {
@@ -1360,7 +1360,7 @@ let DirectoryLinksProvider = {
    * @param url String url of the suggested link
    * @return true if link is viewable, false otherwise
    */
-  _testFrequencyCapLimits: function DirectoryLinksProvider_testFrequencyCapLimits(url) {
+  _testFrequencyCapLimits: function RemoteDirectoryLinksProvider_testFrequencyCapLimits(url) {
     let capObject = this._frequencyCaps[url];
     // sanity check: if url is missing - do not show this tile
     if (!capObject) {
@@ -1387,7 +1387,7 @@ let DirectoryLinksProvider = {
    * @param url String url of the suggested link
    * @return promise resolved upon disk write completion
    */
-  _removeTileClick: function DirectoryLinksProvider_removeTileClick(url = "") {
+  _removeTileClick: function RemoteDirectoryLinksProvider_removeTileClick(url = "") {
     // remove trailing slash, to accomodate Places sending site urls ending with '/'
     let noTrailingSlashUrl = url.replace(/\/$/,"");
     let capObject = this._frequencyCaps[url] || this._frequencyCaps[noTrailingSlashUrl];
@@ -1404,7 +1404,7 @@ let DirectoryLinksProvider = {
    * Removes all clicked flags from frequency cap object
    * @return promise resolved upon disk write completion
    */
-  _removeAllTileClicks: function DirectoryLinksProvider_removeAllTileClicks() {
+  _removeAllTileClicks: function RemoteDirectoryLinksProvider_removeAllTileClicks() {
     Object.keys(this._frequencyCaps).forEach(url => {
       delete this._frequencyCaps[url].clicked;
     });
@@ -1414,17 +1414,17 @@ let DirectoryLinksProvider = {
   /**
    * Return the object to its pre-init state
    */
-  reset: function DirectoryLinksProvider_reset() {
+  reset: function RemoteDirectoryLinksProvider_reset() {
     delete this.__linksURL;
     this._removePrefsObserver();
     this._removeObservers();
   },
 
-  addObserver: function DirectoryLinksProvider_addObserver(aObserver) {
+  addObserver: function RemoteDirectoryLinksProvider_addObserver(aObserver) {
     this._observers.add(aObserver);
   },
 
-  removeObserver: function DirectoryLinksProvider_removeObserver(aObserver) {
+  removeObserver: function RemoteDirectoryLinksProvider_removeObserver(aObserver) {
     this._observers.delete(aObserver);
   },
 

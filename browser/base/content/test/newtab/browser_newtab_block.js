@@ -30,7 +30,6 @@ function runTests() {
 
   yield addNewTabPageTab();
   yield customizeNewTabPage("enhanced"); // Toggle enhanced off
-  yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8");
 
   yield blockCell(4);
@@ -43,10 +42,11 @@ function runTests() {
   checkGrid("0,1,2,3,7,8,9,,");
 
   // we removed a pinned site
-  yield undoAll();
+  yield restore();
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks(",1");
-  yield whenPagesUpdated();
+
+  yield addNewTabPageTab();
   checkGrid("0,1p,2,3,4,5,6,7,8");
 
   yield blockCell(1);
@@ -54,10 +54,11 @@ function runTests() {
 
   // we remove the last site on the grid (which is pinned) and expect the gap
   // to be re-filled and the new site to be unpinned
-  yield undoAll();
+  yield restore();
   yield setLinks("0,1,2,3,4,5,6,7,8,9");
   setPinnedLinks(",,,,,,,,8");
-  yield whenPagesUpdated();
+
+  yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8p");
 
   yield blockCell(8);
@@ -65,20 +66,20 @@ function runTests() {
 
   // we remove the first site on the grid with the last one pinned. all cells
   // but the last one should shift to the left and a new site fades in
-  yield undoAll();
+  yield restore();
   yield setLinks("0,1,2,3,4,5,6,7,8,9");
   setPinnedLinks(",,,,,,,,8");
-  yield whenPagesUpdated();
+
+  yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8p");
 
   yield blockCell(0);
   checkGrid("1,2,3,4,5,6,7,9,8p");
 
-  // // Test that blocking the targeted site also removes its associated suggested tile
+  // Test that blocking the targeted site also removes its associated suggested tile
   NewTabUtils.isTopPlacesSite = origIsTopPlacesSite;
-  yield undoAll();
+  yield restore();
   yield setLinks("0,1,2,3,4,5,6,7,8,9");
-  setPinnedLinks("");
   yield customizeNewTabPage("enhanced"); // Toggle enhanced on
   yield addNewTabPageTab();
   checkGrid("http://suggested.com/,0,1,2,3,4,5,6,7,8,9");

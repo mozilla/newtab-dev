@@ -13,34 +13,22 @@ const SCHEDULE_UPDATE_TIMEOUT_MS = 1000;
  */
 let gPage = {
   /**
-   * The page's unique window ID.
-   */
-  get windowID() {
-    delete this.windowID;
-    return this.windowID = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                                 .getInterface(Ci.nsIDOMWindowUtils)
-                                 .outerWindowID;
-  },
-
-  /**
    * Initializes the page.
    */
   init: function Page_init() {
-    addMessageListener("NewTab:UpdatePages", this.update.bind(this));
-    addMessageListener("NewTab:Observe", this.observe.bind(this));
-    addMessageListener("NewTab:PinState", this.setPinState.bind(this));
-    addMessageListener("NewTab:BlockState", this.setBlockState.bind(this));
-    addMessageListener("NewTab:ThumbnailURI", this.findURL.bind(this));
+    // Add ourselves to the list of pages to receive notifications.
+    gAllPages.register(this);
+
+    // Listen for 'unload' to unregister this page.
+    addEventListener("unload", this, false);
 
     // XXX bug 991111 - Not all click events are correctly triggered when
     // listening from xhtml nodes -- in particular middle clicks on sites, so
     // listen from the xul window and filter then delegate
     addEventListener("click", this, false);
 
-    addEventListener("unload", this, false);
-
     // Check if the new tab feature is enabled.
-    let enabled = Services.prefs.getBoolPref("browser.newtabpage.enabled");
+    let enabled = gAllPages.enabled;
     if (enabled)
       this._init();
 
@@ -56,18 +44,16 @@ let gPage = {
   /**
    * Listens for notifications specific to this page.
    */
-  observe: function Page_observe(message) {
-    let topic = message.data.topic;
-    let data = message.data.data;
-
-    if (topic == "nsPref:changed") {
+  observe: function Page_observe(aSubject, aTopic, aData) {
+    if (aTopic == "nsPref:changed") {
       gCustomize.updateSelected();
 
-      let enabled = Services.prefs.getBoolPref("browser.newtabpage.enabled");
+      let enabled = gAllPages.enabled;
       this._updateAttributes(enabled);
 
-      // Show intro if necessary.
-      if (data == "browser.newtabpage.enhanced") {
+      // Update thumbnails to the new enhanced setting
+      if (aData == "browser.newtabpage.enhanced") {
+        this.update();
         gIntro.showIfNecessary();
       }
 
@@ -77,9 +63,9 @@ let gPage = {
       } else {
         gUndoDialog.hide();
       }
-    } else if (topic == "page-thumbnail:create" && gGrid.ready) {
+    } else if (aTopic == "page-thumbnail:create" && gGrid.ready) {
       for (let site of gGrid.sites) {
-        if (site && site.url === data) {
+        if (site && site.url === aData) {
           site.refreshThumbnail();
         }
       }
@@ -94,23 +80,16 @@ let gPage = {
    * a page update. The page may decide to delay or prevent a requested updated
    * based on the given reason.
    */
-  update(message) {
-    if (message == null) {
-      return;
-    }
-    // Do not refresh the entire grid for the page we're on, as refreshing will
-    // cause tiles to flash briefly. It is ok to refresh pages not currently visible
-    // but ignore updates for the currently visible page.
-    if (this.windowID == message.data.outerWindowID || !message.data.refreshPage
-        && message.data.reason != "links-changed") {
-      this.sendUpdateToTest();
-      return;
-    }
+  update(reason = "") {
     // Update immediately if we're visible.
     if (!document.hidden) {
-      if (gGrid.ready) {
-        gGrid.refresh(message);
+      // Ignore updates where reason=links-changed as those signal that the
+      // provider's set of links changed. We don't want to update visible pages
+      // in that case, it is ok to wait until the user opens the next tab.
+      if (reason != "links-changed" && gGrid.ready) {
+        gGrid.refresh();
       }
+
       return;
     }
 
@@ -122,17 +101,10 @@ let gPage = {
     this._scheduleUpdateTimeout = setTimeout(() => {
       // Refresh if the grid is ready.
       if (gGrid.ready) {
-        gGrid.refresh(message);
+        gGrid.refresh();
       }
 
       this._scheduleUpdateTimeout = null;
-    }, SCHEDULE_UPDATE_TIMEOUT_MS);
-  },
-
-  sendUpdateToTest: function() {
-    setTimeout(() => {
-      let event = new CustomEvent("AboutNewTabUpdated", {bubbles: true});
-      document.dispatchEvent(event);
     }, SCHEDULE_UPDATE_TIMEOUT_MS);
   },
 
@@ -196,6 +168,7 @@ let gPage = {
    * Handles unload event
    */
   _handleUnloadEvent: function Page_handleUnloadEvent() {
+    gAllPages.unregister(this);
     // compute page life-span and send telemetry probe: using milli-seconds will leave
     // many low buckets empty. Instead we use half-second precision to make low end
     // of histogram linear and not loose the change in user attention
@@ -311,44 +284,6 @@ let gPage = {
       }
     }
 
-    sendAsyncMessage("NewTab:ReportSitesAction", {length: gGrid.cells.length, action: "view", index: lastIndex});
-  },
-
-  setPinState: function Page_setPinState(message) {
-    for (let site of gGrid.sites) {
-      if (site && site._link.url == message.data.link.url) {
-        site._link.pinState = message.data.pinState;
-        break;
-      }
-    }
-    // If we are unpinning the site, update the grid.
-    if (!message.data.pinState) {
-      gUpdater.updateGrid(message);
-    }
-  },
-
-  setBlockState: function Page_setBlockState(message) {
-    for (let site of gGrid.sites) {
-      if (site && site._link.url == message.data.link.url) {
-        site._link.blockState = message.data.blockState;
-        break;
-      }
-    }
-    // If we are blocking the site, update the grid.
-    if (message.data.blockState) {
-      gUpdater.updateGrid(message);
-    }
-  },
-
-  /**
-   * Find the correct URL to display.
-   * @param aURL The current URL sent down from the parent.
-   */
-  findURL: function Page_findURL(aURL) {
-    for (let site of gGrid.sites) {
-      if (site && aURL.data.url == site.url) {
-        site._getURI(aURL);
-      }
-    }
-  },
+    DirectoryLinksProvider.reportSitesAction(sites, "view", lastIndex);
+  }
 };

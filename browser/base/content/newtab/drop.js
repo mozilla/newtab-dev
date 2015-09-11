@@ -57,7 +57,7 @@ let gDrop = {
     this._cancelDelayedArrange();
 
     // Update the grid and move all sites to their new places.
-    gUpdater.sendUpdate();
+    gUpdater.updateGrid();
   },
 
   /**
@@ -93,8 +93,10 @@ let gDrop = {
       let link = gDragDataHelper.getLinkFromDragEvent(aEvent);
       if (link) {
         // A new link was dragged onto the grid. Create it by pinning its URL.
-        // Also, make sure the newly added link is not blocked.
-        sendAsyncMessage("NewTab:PinLink", {link, index, ensureUnblocked: true});
+        gPinnedLinks.pin(link, index);
+
+        // Make sure the newly added link is not blocked.
+        gBlockedLinks.unblock(link);
       }
     }
   },

@@ -7,11 +7,12 @@
 BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
 XPCSHELL_TESTS_MANIFESTS += [
     'test/unit/social/xpcshell.ini',
-    'test/xpcshell/xpcshell.ini'
+    'test/xpcshell/xpcshell.ini',
 ]
 
 EXTRA_JS_MODULES += [
     'AboutHome.jsm',
+    'AboutNewTab.jsm',
     'BrowserUITelemetry.jsm',
     'CastingApps.jsm',
     'Chat.jsm',
@@ -22,6 +23,7 @@ EXTRA_JS_MODULES += [
     'ContentSearch.jsm',
     'ContentWebRTC.jsm',
     'CustomizationTabPreloader.jsm',
+    'DirectoryLinksProvider.jsm',
     'E10SUtils.jsm',
     'Feeds.jsm',
     'FormSubmitObserver.jsm',

@@ -71,7 +71,7 @@ let gIntro = {
     }
     if (!Services.prefs.getBoolPref(PREF_INTRO_SHOWN)) {
       this.showPanel();
-      sendAsyncMessage("NewTab:IntroShown");
+      Services.prefs.setBoolPref(PREF_INTRO_SHOWN, true);
     }
   },
 

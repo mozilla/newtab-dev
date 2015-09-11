@@ -518,7 +518,6 @@ add_task(function test_topSitesWithSuggestedLinks() {
   NewTabUtils.getProviderLinks = origGetProviderLinks;
 });
 
-/*
 add_task(function test_suggestedAttributes() {
   let origIsTopPlacesSite = NewTabUtils.isTopPlacesSite;
   NewTabUtils.isTopPlacesSite = () => true;
@@ -724,9 +723,7 @@ add_task(function test_frequencyCappedSites_click() {
   DirectoryLinksProvider.removeObserver(gLinks);
   Services.prefs.setCharPref(kPingUrlPref, kPingUrl);
 });
-*/
 
-/*
 add_task(function test_reportSitesAction() {
   yield DirectoryLinksProvider.init();
   let deferred, expectedPath, expectedPost;
@@ -833,7 +830,6 @@ add_task(function test_reportSitesAction() {
 
   done = true;
 });
-*/
 
 add_task(function test_fetchAndCacheLinks_local() {
   yield DirectoryLinksProvider.init();
@@ -1220,7 +1216,6 @@ add_task(function test_DirectoryLinksProvider_getEnhancedLink() {
   checkEnhanced("http://example.com", "data:,fresh");
 });
 
-/*
 add_task(function test_DirectoryLinksProvider_enhancedURIs() {
   let origGetFrecentSitesName = DirectoryLinksProvider.getFrecentSitesName;
   DirectoryLinksProvider.getFrecentSitesName = () => "";
@@ -1272,7 +1267,6 @@ add_task(function test_DirectoryLinksProvider_enhancedURIs() {
   DirectoryLinksProvider._getCurrentTopSiteCount = origCurrentTopSiteCount;
   gLinks.removeProvider(DirectoryLinksProvider);
 });
-*/
 
 add_task(function test_DirectoryLinksProvider_setDefaultEnhanced() {
   function checkDefault(expected) {
@@ -1598,7 +1592,6 @@ add_task(function test_DirectoryLinksProvider_getFrequencyCapLogic() {
   yield promiseCleanDirectoryLinksProvider();
 });
 
-/* XXX: Failing
 add_task(function test_DirectoryLinksProvider_getFrequencyCapReportSiteAction() {
   yield promiseSetupDirectoryLinksProvider();
   yield DirectoryLinksProvider.init();
@@ -1626,7 +1619,6 @@ add_task(function test_DirectoryLinksProvider_getFrequencyCapReportSiteAction() 
 
   yield promiseCleanDirectoryLinksProvider();
 });
-*/
 
 add_task(function test_DirectoryLinksProvider_ClickRemoval() {
   yield promiseSetupDirectoryLinksProvider();
@@ -1755,7 +1747,6 @@ add_task(function test_sanitizeExplanation() {
   do_check_eq(suggestedLink.targetedName, "WE ARE EVIL ");
 });
 
-/*
 add_task(function test_inadjecentSites() {
   let suggestedTile = Object.assign({
     check_inadjacency: true
@@ -1933,9 +1924,7 @@ add_task(function test_inadjecentSites() {
   DirectoryLinksProvider._getCurrentTopSiteCount = origCurrentTopSiteCount;
   yield promiseCleanDirectoryLinksProvider();
 });
-*/
 
-/* XXX: Failing
 add_task(function test_reportPastImpressions() {
   let origGetFrecentSitesName = DirectoryLinksProvider.getFrecentSitesName;
   DirectoryLinksProvider.getFrecentSitesName = () => "";
@@ -2041,4 +2030,3 @@ add_task(function test_reportPastImpressions() {
   NewTabUtils.isTopPlacesSite = origIsTopPlacesSite;
   DirectoryLinksProvider._getCurrentTopSiteCount = origCurrentTopSiteCount;
 });
-*/

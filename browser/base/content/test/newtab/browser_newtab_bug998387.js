@@ -7,7 +7,6 @@ function runTests() {
   // set max rows to 1, to avoid scroll events by clicking middle button
   Services.prefs.setIntPref(PREF_NEWTAB_ROWS, 1);
   yield setLinks("0");
-  yield whenPagesUpdated();
   yield addNewTabPageTab();
   // we need a second newtab to honor max rows
   yield addNewTabPageTab();

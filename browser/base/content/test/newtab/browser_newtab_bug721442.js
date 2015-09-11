@@ -9,9 +9,7 @@ function runTests() {
     {url: "http://example9.com/", title: "http://example9.com/"}
   ]);
 
-  yield whenPagesUpdated();
   yield addNewTabPageTab();
-  yield customizeNewTabPage("enhanced");
   checkGrid("7p,8p,9p,0,1,2,3,4,5");
 
   checkTooltip(0, "http://example7.com/", "1st tooltip is correct");
