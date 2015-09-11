@@ -13,6 +13,7 @@ EXTRA_JS_MODULES += [
     'DirectoryLinksProvider.jsm',
     'NewTabURL.jsm',
     'PlacesProvider.jsm',
+    'RemoteNewTabLocation.jsm',
 ]
 
 if CONFIG['MOZILLA_OFFICIAL']:
