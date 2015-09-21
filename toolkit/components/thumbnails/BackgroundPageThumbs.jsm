@@ -80,7 +80,7 @@ const BackgroundPageThumbs = {
    * @param url      The URL to capture.
    * @param options  An optional object that configures the capture.  See
    *                 capture() for description.
-   * @retun {Promise} Promise;
+   * @return {Promise} Promise;
    */
   captureIfMissing: function (url, options={}) {
     return new Promise((resolve, reject)=>{
