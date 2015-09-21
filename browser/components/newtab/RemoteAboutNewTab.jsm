@@ -23,6 +23,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageThumbsStorage",
   "resource://gre/modules/PageThumbs.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
   "resource:///modules/RemoteDirectoryLinksProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
+  "resource:///modules/RemoteNewTabLocation.jsm");
 
 
 let RemoteAboutNewTab = {
@@ -49,6 +51,12 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
     this.pageListener.addMessageListener("NewTab:RecordSiteClicked", this.recordSiteClicked.bind(this));
+    this.pageListener.addMessageListener("RemotePage:Load", () => {
+      this.pageListener.sendAsyncMessage("NewTabFrame:init", {
+        href: RemoteNewTabLocation.href,
+        origin: RemoteNewTabLocation.origin
+      });
+    });
 
     this._addObservers();
   },

@@ -17,10 +17,9 @@
     "resource://gre/modules/PrivateBrowsingUtils.jsm");
   XPCOMUtils.defineLazyModuleGetter(imports, "Services",
     "resource://gre/modules/Services.jsm");
-  XPCOMUtils.defineLazyModuleGetter(imports, "RemoteNewTabLocation",
-    "resource:///modules/RemoteNewTabLocation.jsm");
 
   let iframe;
+  let remoteNewTabLocation;
 
   function handleCommand(command, data) {
     let commandHandled = true;
@@ -40,11 +39,10 @@
     return commandHandled;
   }
 
-  function initRemotePage() {
+  function initRemotePage(initData) {
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
-    let iframe = getIframe();
-    iframe.src = imports.RemoteNewTabLocation.href;
+    remoteNewTabLocation = initData;
 
     let loadHandler = () => {
       iframe.removeEventListener("load", loadHandler);
@@ -58,6 +56,10 @@
       let ev = new CustomEvent("NewTabCommandReady");
       iframe.contentDocument.dispatchEvent(ev);
     };
+
+    let iframe = getIframe();
+    iframe.src = remoteNewTabLocation.href;
+
     // Check if iframe already fired its onload event
     if (iframe.contentDocument.readyState === "complete") {
       loadHandler();
@@ -71,7 +73,7 @@
     // onto the iframe
     addMessageListener(event, (message) => {
       let iframe = getIframe();
-      iframe.contentWindow.postMessage(message, imports.RemoteNewTabLocation.origin);
+      iframe.contentWindow.postMessage(message, remoteNewTabLocation.origin);
     });
   }
 
@@ -92,7 +94,7 @@
     iframe.contentWindow.postMessage({
       name: "NewTab:State",
       data: state
-    }, imports.RemoteNewTabLocation.origin);
+    }, remoteNewTabLocation.origin);
   }
 
   function getIframe() {
@@ -102,6 +104,9 @@
     return iframe;
   }
 
-  // Everything is loaded. Initialize the New Tab Page.
-  initRemotePage();
+  addMessageListener("NewTabFrame:init", function foo(message) {
+    // Everything is loaded. Initialize the New Tab Page.
+    removeMessageListener("NewTabFrame:init", foo);
+    initRemotePage(message.data);
+  });
 }());

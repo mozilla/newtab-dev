@@ -7,7 +7,8 @@ this.EXPORTED_SYMBOLS = ["RemoteNewTabLocation"];
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.importGlobalProperties(["URL"]);
 
-const DEFAULT_PAGE_LOCATION = "https://mozilla.github.io/remote-newtab/";
+//const DEFAULT_PAGE_LOCATION = "https://mozilla.github.io/remote-newtab/";
+const DEFAULT_PAGE_LOCATION = "https://people.mozilla.org/~oyiptong/remote-newtab/";
 
 this.RemoteNewTabLocation = {
   _url: new URL(DEFAULT_PAGE_LOCATION),
