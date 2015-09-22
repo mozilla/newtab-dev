@@ -13,6 +13,8 @@ this.EXPORTED_SYMBOLS = [ "RemoteAboutNewTab" ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
+Cu.importGlobalProperties(['URL']);
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePages",
   "resource://gre/modules/RemotePageManager.jsm");
@@ -45,7 +47,7 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
     this.pageListener.addMessageListener("NewTab:UndoAll", this.undoAll.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs", this.captureBackgroundPageThumb.bind(this));
-    this.pageListener.addMessageListener("NewTab:PageThumbs", this.pageThumbs.bind(this));
+    this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
@@ -347,7 +349,7 @@ let RemoteAboutNewTab = {
       ctx.drawImage(this, 0, 0, this.naturalWidth, this.naturalHeight);
       canvas.toBlob(function (blob) {
         let host = new URL(message.data.link.url).host;
-        AboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
+        RemoteAboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
           thumbPath: "/pagethumbs/" + host,
           enhanced,
           url: message.data.link.url,
