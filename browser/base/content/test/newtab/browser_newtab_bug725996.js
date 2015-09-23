@@ -4,6 +4,7 @@
 function runTests() {
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("");
+  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8");
@@ -11,11 +12,13 @@ function runTests() {
   let cell = getCell(0).node;
 
   sendDragEvent("drop", cell, "http://example99.com/\nblank");
+  yield whenPagesUpdated();
   is(NewTabUtils.pinnedLinks.links[0].url, "http://example99.com/",
      "first cell is pinned and contains the dropped site");
 
-  yield whenPagesUpdated();
   checkGrid("99p,0,1,2,3,4,5,6,7");
+
+  cell = getCell(0).node;
 
   sendDragEvent("drop", cell, "");
   is(NewTabUtils.pinnedLinks.links[0].url, "http://example99.com/",
