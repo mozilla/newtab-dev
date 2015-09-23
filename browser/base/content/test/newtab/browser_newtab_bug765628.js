@@ -7,6 +7,7 @@ const GOOD_DRAG_DATA = "http://example99.com/\nsite 99";
 function runTests() {
   yield setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("");
+  yield whenPagesUpdated();
 
   yield addNewTabPageTab();
   checkGrid("0,1,2,3,4,5,6,7,8");

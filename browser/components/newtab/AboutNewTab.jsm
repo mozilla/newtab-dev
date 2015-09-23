@@ -9,26 +9,27 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
-this.EXPORTED_SYMBOLS = [ "RemoteAboutNewTab" ];
+this.EXPORTED_SYMBOLS = [ "AboutNewTab" ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.importGlobalProperties(['URL']);
+Cu.import("resource:///modules/DirectoryLinksProvider.jsm");
+Cu.importGlobalProperties(["URL"]);
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePages",
   "resource://gre/modules/RemotePageManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabUtils",
-  "resource:///modules/RemoteNewTabUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
+  "resource://gre/modules/NewTabUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "BackgroundPageThumbs",
   "resource://gre/modules/BackgroundPageThumbs.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
-  "resource:///modules/RemoteDirectoryLinksProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DirectoryLinksProvider",
+  "resource:///modules/DirectoryLinksProvider.jsm");
 
 
-let RemoteAboutNewTab = {
+let AboutNewTab = {
 
   pageListener: null,
 
@@ -36,7 +37,7 @@ let RemoteAboutNewTab = {
    * Initialize the RemotePageManager and add all message listeners for this page
    */
   init: function() {
-    this.pageListener = new RemotePages("about:remote-newtab");
+    this.pageListener = new RemotePages("about:newtab");
     this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
@@ -71,10 +72,10 @@ let RemoteAboutNewTab = {
    */
   customize: function(message) {
     if (message.data.enabled !== undefined) {
-      RemoteNewTabUtils.allPages.enabled = message.data.enabled;
+      NewTabUtils.allPages.enabled = message.data.enabled;
     }
     if (message.data.enhanced !== undefined) {
-      RemoteNewTabUtils.allPages.enhanced = message.data.enhanced;
+      NewTabUtils.allPages.enhanced = message.data.enhanced;
     }
   },
 
@@ -87,10 +88,10 @@ let RemoteAboutNewTab = {
    *        A RemotePageManager message.
    */
   initializeGrid: function(message) {
-    RemoteNewTabUtils.links.populateCache(() => {
+    NewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
-        links: RemoteNewTabUtils.links.getLinks(),
-        pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
+        links: NewTabUtils.links.getLinks(),
+        pinnedLinks: NewTabUtils.pinnedLinks.links,
         enhancedLinks: this.getEnhancedLinks(),
       });
     });
@@ -104,8 +105,8 @@ let RemoteAboutNewTab = {
    */
   updateGrid: function(message) {
     message.target.sendAsyncMessage("NewTab:UpdateLinks", {
-      links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
+      links: NewTabUtils.links.getLinks(),
+      pinnedLinks: NewTabUtils.pinnedLinks.links,
       enhancedLinks: this.getEnhancedLinks(),
     });
   },
@@ -138,9 +139,9 @@ let RemoteAboutNewTab = {
   pinLink: function(message) {
     let link = message.data.link;
     let index = message.data.index;
-    RemoteNewTabUtils.pinnedLinks.pin(link, index);
+    NewTabUtils.pinnedLinks.pin(link, index);
     message.target.sendAsyncMessage("NewTab:PinState", {
-      pinState: RemoteNewTabUtils.pinnedLinks.links[index].pinState,
+      pinState: NewTabUtils.pinnedLinks.links[index].pinState,
       link,
     });
     if (message.data.ensureUnblocked) {
@@ -170,10 +171,10 @@ let RemoteAboutNewTab = {
    */
   unpinLink: function(message) {
     let link = message.data.link;
-    RemoteNewTabUtils.pinnedLinks.unpin(link);
+    NewTabUtils.pinnedLinks.unpin(link);
     message.target.sendAsyncMessage("NewTab:PinState", {
       pinState: link.pinState,
-      links: RemoteNewTabUtils.links.getLinks(),
+      links: NewTabUtils.links.getLinks(),
       link,
     });
     this.updatePages(message);
@@ -202,7 +203,7 @@ let RemoteAboutNewTab = {
   replacePinLink: function(message) {
     let oldUrl = message.data.oldUrl;
     let link = message.data.link;
-    RemoteNewTabUtils.pinnedLinks.replace(oldUrl, link);
+    NewTabUtils.pinnedLinks.replace(oldUrl, link);
   },
 
   /**
@@ -225,10 +226,10 @@ let RemoteAboutNewTab = {
    */
   block: function(message) {
     let link = message.data.link;
-    RemoteNewTabUtils.blockedLinks.block(link);
+    NewTabUtils.blockedLinks.block(link);
     message.target.sendAsyncMessage("NewTab:BlockState", {
-      blockState: RemoteNewTabUtils.blockedLinks.isBlocked(message.data.link),
-      links: RemoteNewTabUtils.links.getLinks(),
+      blockState: NewTabUtils.blockedLinks.isBlocked(message.data.link),
+      links: NewTabUtils.links.getLinks(),
       link,
     });
     this.updatePages(message);
@@ -259,9 +260,9 @@ let RemoteAboutNewTab = {
    */
   unblock: function(message) {
     let link = message.data.link;
-    RemoteNewTabUtils.blockedLinks.unblock(link);
+    NewTabUtils.blockedLinks.unblock(link);
     message.target.sendAsyncMessage("NewTab:BlockState", {
-      blockState: RemoteNewTabUtils.blockedLinks.isBlocked(message.data.link),
+      blockState: NewTabUtils.blockedLinks.isBlocked(message.data.link),
       link,
     });
 
@@ -279,7 +280,7 @@ let RemoteAboutNewTab = {
    *        A RemotePageManager message.
    */
   undoAll: function(message) {
-    RemoteNewTabUtils.undoAll(function() {
+    NewTabUtils.undoAll(function() {
       message.target.sendAsyncMessage("NewTab:Restore");
       this.updatePages(message);
     }.bind(this));
@@ -349,7 +350,7 @@ let RemoteAboutNewTab = {
       ctx.drawImage(this, 0, 0, this.naturalWidth, this.naturalHeight);
       canvas.toBlob(function (blob) {
         let host = new URL(message.data.link.url).host;
-        RemoteAboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
+        AboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
           thumbPath: "/pagethumbs/" + host,
           enhanced,
           url: message.data.link.url,
@@ -373,11 +374,11 @@ let RemoteAboutNewTab = {
     let tabbrowser = message.target ? message.target.browser.getTabBrowser() : message;
     let outerWindowID = tabbrowser ? tabbrowser.selectedBrowser.outerWindowID : null;
     this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
-      links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
+      links: NewTabUtils.links.getLinks(),
+      pinnedLinks: NewTabUtils.pinnedLinks.links,
       refreshPage: true,
       enhancedLinks: this.getEnhancedLinks(),
-      reason: RemoteNewTabUtils.links._reason,
+      reason: NewTabUtils.links._reason,
       outerWindowID,
     });
   },
@@ -436,7 +437,7 @@ let RemoteAboutNewTab = {
   reportSitesAction: function(message) {
     // Convert sites to objects.
     let parsedSites = message.data.sites.map(site => JSON.parse(site));
-    RemoteDirectoryLinksProvider.reportSitesAction(parsedSites, message.data.action, message.data.index);
+    DirectoryLinksProvider.reportSitesAction(parsedSites, message.data.action, message.data.index);
   },
 
   /**
@@ -444,9 +445,9 @@ let RemoteAboutNewTab = {
    */
   getEnhancedLinks: function() {
     let enhancedLinks = [];
-    for (let link of RemoteNewTabUtils.links.getLinks()) {
+    for (let link of NewTabUtils.links.getLinks()) {
       if (link) {
-        enhancedLinks.push(RemoteDirectoryLinksProvider.getEnhancedLink(link));
+        enhancedLinks.push(DirectoryLinksProvider.getEnhancedLink(link));
       }
     }
     return enhancedLinks;
@@ -464,28 +465,28 @@ let RemoteAboutNewTab = {
     if (aTopic == "nsPref:changed") {
       switch (aData) {
         case "browser.newtabpage.enabled":
-          RemoteNewTabUtils.allPages._enabled = null;
+          NewTabUtils.allPages._enabled = null;
           refreshPage = true;
           extraData = Services.prefs.getBoolPref("browser.newtabpage.enabled");
           break;
         case "browser.newtabpage.enhanced":
-          RemoteNewTabUtils.allPages._enhanced = null;
+          NewTabUtils.allPages._enhanced = null;
           refreshPage = true;
           extraData = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
           break;
         case "browser.newtabpage.pinned":
-          RemoteNewTabUtils.pinnedLinks.resetCache();
+          NewTabUtils.pinnedLinks.resetCache();
           break;
         case "browser.newtabpage.blocked":
-          RemoteNewTabUtils.blockedLinks.resetCache();
+          NewTabUtils.blockedLinks.resetCache();
           break;
       }
     } else if (aTopic == "browser:purge-session-history") {
-        RemoteNewTabUtils.links.resetCache();
-        RemoteNewTabUtils.links.populateCache(() => {
+        NewTabUtils.links.resetCache();
+        NewTabUtils.links.populateCache(() => {
           this.pageListener.sendAsyncMessage("NewTab:UpdateLinks", {
-          links: RemoteNewTabUtils.links.getLinks(),
-          pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
+          links: NewTabUtils.links.getLinks(),
+          pinnedLinks: NewTabUtils.pinnedLinks.links,
           enhancedLinks: this.getEnhancedLinks(),
         });
       });
@@ -500,10 +501,10 @@ let RemoteAboutNewTab = {
     }
 
     this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
-      links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
+      links: NewTabUtils.links.getLinks(),
+      pinnedLinks: NewTabUtils.pinnedLinks.links,
       enhancedLinks: this.getEnhancedLinks(),
-      reason: RemoteNewTabUtils.links._reason,
+      reason: NewTabUtils.links._reason,
       refreshPage,
     });
   },
