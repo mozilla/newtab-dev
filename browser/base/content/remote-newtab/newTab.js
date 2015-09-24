@@ -46,10 +46,23 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
       }
 
       remoteIFrame.removeEventListener("load", loadHandler);
-      remoteIFrame.contentDocument.addEventListener("NewTabCommand", (e) => {
-        let handled = handleCommand(e.detail.command, e.detail.data);
+      remoteIFrame.contentDocument.addEventListener("NewTabCommand", ({detail}) => {
+        let obj;
+        let { data, command } = detail;
+        if(typeof data !== "string"){
+          console.error("Type error, expected data to be a string.");
+          return;
+        }
+        try{
+          obj = JSON.parse(data);
+        } catch (err) {
+          let msg = `Security error. Message ${command} could not be parsed.`;
+          console.error(msg, err);
+          return;
+        }
+        let handled = handleCommand(command, obj);
         if (!handled) {
-          sendAsyncMessage(e.detail.command, e.detail.data);
+          sendAsyncMessage(command, obj);
         }
       });
       registerEvent("NewTab:Observe");
@@ -62,7 +75,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
   }
 
   function registerEvent(event) {
-    // Messages that the privileged parent process sends will be passed
+    // Messages that the privileged parent-process sends will be passed
     // onto the iframe
     addMessageListener(event, (message) => {
       remoteIFrame.contentWindow.postMessage(message, remoteNewTabLocation.origin);
@@ -84,8 +97,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
     };
     remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
-      data: state
-    }, remoteNewTabLocation.origin);
+      data,
+    }, imports.RemoteNewTabLocation.origin);
   }
 
   addMessageListener("NewTabFrame:Init", function loadHandler(message) {
