@@ -48,10 +48,23 @@
 
     let loadHandler = () => {
       iframe.removeEventListener("load", loadHandler);
-      iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
-        let handled = handleCommand(e.detail.command, e.detail.data);
+      iframe.contentDocument.addEventListener("NewTabCommand", ({detail}) => {
+        let obj;
+        let { data, command } = detail;
+        if(typeof data !== "string"){
+          console.error("Type error, expected data to be a string.");
+          return;
+        }
+        try{
+          obj = JSON.parse(data);
+        } catch (err) {
+          let msg = `Security error. Message ${command} could not be parsed.`;
+          console.error(msg, err);
+          return;
+        }
+        let handled = handleCommand(command, obj);
         if (!handled) {
-          sendAsyncMessage(e.detail.command, e.detail.data);
+          sendAsyncMessage(command, obj);
         }
       });
       registerEvent("NewTab:Observe");
@@ -67,7 +80,7 @@
   }
 
   function registerEvent(event) {
-    // Messages that the privileged parent process sends will be passed
+    // Messages that the privileged parent-process sends will be passed
     // onto the iframe
     addMessageListener(event, (message) => {
       let iframe = getIframe();
@@ -78,7 +91,7 @@
   function getInitialState() {
     let prefs = imports.Services.prefs;
     let isPrivate = imports.PrivateBrowsingUtils.isContentWindowPrivate(window);
-    let state = {
+    let data = {
       enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
       enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
       rows: prefs.getIntPref("browser.newtabpage.rows"),
@@ -91,7 +104,7 @@
     let iframe = getIframe();
     iframe.contentWindow.postMessage({
       name: "NewTab:State",
-      data: state
+      data,
     }, imports.RemoteNewTabLocation.origin);
   }
 
