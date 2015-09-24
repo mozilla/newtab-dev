@@ -37,6 +37,7 @@ EXTRA_JS_MODULES += [
     'ReaderParent.jsm',
     'RecentWindow.jsm',
     'RemotePrompt.jsm',
+    'SearchProvider.jsm',
     'SelfSupportBackend.jsm',
     'SitePermissions.jsm',
     'Social.jsm',
