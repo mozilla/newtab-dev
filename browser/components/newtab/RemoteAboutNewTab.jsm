@@ -2,22 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* globals Services, XPCOMUtils, RemotePages, RemoteNewTabLocation, RemoteNewTabUtils  */
-/* globals BackgroundPageThumbs, PageThumbsStorage, RemoteDirectoryLinksProvider */
+/* globals Services, XPCOMUtils, RemotePages, RemoteNewTabLocation, RemoteNewTabUtils, Task  */
+/* globals BackgroundPageThumbs, PageThumbs, RemoteDirectoryLinksProvider */
 /* exported RemoteAboutNewTab */
 
 "use strict";
 
 let Ci = Components.interfaces;
 let Cu = Components.utils;
-const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 this.EXPORTED_SYMBOLS = ["RemoteAboutNewTab"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.importGlobalProperties(['URL']);
+Cu.importGlobalProperties(["URL"]);
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemotePages",
   "resource://gre/modules/RemotePageManager.jsm");
@@ -50,7 +50,8 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:BlockLink", this.block.bind(this));
     this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
     this.pageListener.addMessageListener("NewTab:UndoAll", this.undoAll.bind(this));
-    this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs", this.captureBackgroundPageThumb.bind(this));
+    this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
+        this.captureBackgroundPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
@@ -295,7 +296,7 @@ let RemoteAboutNewTab = {
     }.bind(this));
   },
 
-    /**
+  /**
    * Captures the site's thumbnail in the background, then attemps to show the thumbnail.
    *
    * @param {Object} message
@@ -318,8 +319,7 @@ let RemoteAboutNewTab = {
       yield BackgroundPageThumbs.captureIfMissing(message.data.link.url);
       this.createPageThumb(message);
     } catch (err) {
-      var msg = `Cannot capture background page thumbs. `;
-      dump("error: " + err);
+      Cu.reportError("error: " + err);
     }
   }),
 
@@ -345,19 +345,19 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  createPageThumb: function (message) {
+  createPageThumb: function(message) {
     let imgSrc = PageThumbs.getThumbnailURL(message.data.link.url);
     let doc = Services.appShell.hiddenDOMWindow.document;
     let img = doc.createElementNS(XHTML_NAMESPACE, "img");
     let canvas = doc.createElementNS(XHTML_NAMESPACE, "canvas");
     let enhanced = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
 
-    img.onload = function (e) {
+    img.onload = function(e) { // jshint ignore:line
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       var ctx = canvas.getContext("2d");
       ctx.drawImage(this, 0, 0, this.naturalWidth, this.naturalHeight);
-      canvas.toBlob(function (blob) {
+      canvas.toBlob(function(blob) {
         let host = new URL(message.data.link.url).host;
         RemoteAboutNewTab.pageListener.sendAsyncMessage("NewTab:RegularThumbnailURI", {
           thumbPath: "/pagethumbs/" + host,
