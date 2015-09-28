@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*globals Components, sendAsyncMessage, addMessageListener*/
+/*globals Components, sendAsyncMessage, addMessageListener, removeMessageListener*/
 
 "use strict";
 (function() {
@@ -17,10 +17,8 @@
     "resource://gre/modules/PrivateBrowsingUtils.jsm");
   XPCOMUtils.defineLazyModuleGetter(imports, "Services",
     "resource://gre/modules/Services.jsm");
-  XPCOMUtils.defineLazyModuleGetter(imports, "RemoteNewTabLocation",
-    "resource:///modules/RemoteNewTabLocation.jsm");
 
-  let iframe;
+  let remoteNewTabLocation;
 
   function handleCommand(command, data) {
     let commandHandled = true;
@@ -40,15 +38,15 @@
     return commandHandled;
   }
 
-  function initRemotePage() {
+  function initRemotePage(initData) {
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
-    let iframe = getIframe();
-    iframe.src = imports.RemoteNewTabLocation.href;
+    remoteNewTabLocation = initData;
+    let remoteIFrame = document.querySelector("#remotedoc");
 
     let loadHandler = () => {
-      iframe.removeEventListener("load", loadHandler);
-      iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
+      remoteIFrame.removeEventListener("load", loadHandler);
+      remoteIFrame.contentDocument.addEventListener("NewTabCommand", (e) => {
         let handled = handleCommand(e.detail.command, e.detail.data);
         if (!handled) {
           sendAsyncMessage(e.detail.command, e.detail.data);
@@ -56,22 +54,19 @@
       });
       registerEvent("NewTab:Observe");
       let ev = new CustomEvent("NewTabCommandReady");
-      iframe.contentDocument.dispatchEvent(ev);
+      remoteIFrame.contentDocument.dispatchEvent(ev);
     };
-    // Check if iframe already fired its onload event
-    if (iframe.contentDocument.readyState === "complete") {
-      loadHandler();
-      return;
-    }
-    iframe.addEventListener("load", loadHandler);
+
+    remoteIFrame.src = remoteNewTabLocation.href;
+    remoteIFrame.addEventListener("load", loadHandler);
   }
 
   function registerEvent(event) {
     // Messages that the privileged parent process sends will be passed
     // onto the iframe
     addMessageListener(event, (message) => {
-      let iframe = getIframe();
-      iframe.contentWindow.postMessage(message, imports.RemoteNewTabLocation.origin);
+      let remoteIFrame = document.querySelector("#remotedoc");
+      remoteIFrame.contentWindow.postMessage(message, remoteNewTabLocation.origin);
     });
   }
 
@@ -88,20 +83,17 @@
         .getInterface(Ci.nsIDOMWindowUtils).outerWindowID,
       privateBrowsingMode: isPrivate
     };
-    let iframe = getIframe();
-    iframe.contentWindow.postMessage({
+    let remoteIFrame = document.querySelector("#remotedoc");
+    remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
       data: state
-    }, imports.RemoteNewTabLocation.origin);
+    }, remoteNewTabLocation.origin);
   }
 
-  function getIframe() {
-    if (!iframe) {
-      iframe = document.getElementById("remotedoc");
-    }
-    return iframe;
-  }
-
-  // Everything is loaded. Initialize the New Tab Page.
-  initRemotePage();
+  addMessageListener("NewTabFrame:Init", function loadHandler(message) {
+    // Everything is loaded. Initialize the New Tab Page.
+    removeMessageListener("NewTabFrame:Init", loadHandler);
+    initRemotePage(message.data);
+  });
+  sendAsyncMessage("NewTabFrame:GetInit");
 }());
