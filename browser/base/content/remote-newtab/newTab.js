@@ -18,7 +18,6 @@
   XPCOMUtils.defineLazyModuleGetter(imports, "Services",
     "resource://gre/modules/Services.jsm");
 
-  let iframe;
   let remoteNewTabLocation;
 
   function handleCommand(command, data) {
@@ -43,10 +42,11 @@
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
     remoteNewTabLocation = initData;
+    let remoteIFrame = document.querySelector('#remotedoc');
 
     let loadHandler = () => {
-      iframe.removeEventListener("load", loadHandler);
-      iframe.contentDocument.addEventListener("NewTabCommand", (e) => {
+      remoteIFrame.removeEventListener("load", loadHandler);
+      remoteIFrame.contentDocument.addEventListener("NewTabCommand", (e) => {
         let handled = handleCommand(e.detail.command, e.detail.data);
         if (!handled) {
           sendAsyncMessage(e.detail.command, e.detail.data);
@@ -54,20 +54,19 @@
       });
       registerEvent("NewTab:Observe");
       let ev = new CustomEvent("NewTabCommandReady");
-      iframe.contentDocument.dispatchEvent(ev);
+      remoteIFrame.contentDocument.dispatchEvent(ev);
     };
 
-    let iframe = getIframe();
-    iframe.src = remoteNewTabLocation.href;
-    iframe.addEventListener("load", loadHandler);
+    remoteIFrame.src = remoteNewTabLocation.href;
+    remoteIFrame.addEventListener("load", loadHandler);
   }
 
   function registerEvent(event) {
     // Messages that the privileged parent process sends will be passed
     // onto the iframe
     addMessageListener(event, (message) => {
-      let iframe = getIframe();
-      iframe.contentWindow.postMessage(message, remoteNewTabLocation.origin);
+      let remoteIFrame = document.querySelector('#remotedoc');
+      remoteIFrame.contentWindow.postMessage(message, remoteNewTabLocation.origin);
     });
   }
 
@@ -84,18 +83,11 @@
         .getInterface(Ci.nsIDOMWindowUtils).outerWindowID,
       privateBrowsingMode: isPrivate
     };
-    let iframe = getIframe();
-    iframe.contentWindow.postMessage({
+    let remoteIFrame = document.querySelector('#remotedoc');
+    remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
       data: state
     }, remoteNewTabLocation.origin);
-  }
-
-  function getIframe() {
-    if (!iframe) {
-      iframe = document.getElementById("remotedoc");
-    }
-    return iframe;
   }
 
   addMessageListener("NewTabFrame:Init", function loadHandler(message) {
