@@ -55,7 +55,7 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
     this.pageListener.addMessageListener("NewTab:RecordSiteClicked", this.recordSiteClicked.bind(this));
     this.pageListener.addMessageListener("NewTabFrame:GetInit", () => {
-      this.pageListener.sendAsyncMessage("NewTabFrame:init", {
+      this.pageListener.sendAsyncMessage("NewTabFrame:Init", {
         href: RemoteNewTabLocation.href,
         origin: RemoteNewTabLocation.origin
       });

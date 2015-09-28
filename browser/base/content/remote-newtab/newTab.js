@@ -98,9 +98,9 @@
     return iframe;
   }
 
-  addMessageListener("NewTabFrame:init", function foo(message) {
+  addMessageListener("NewTabFrame:Init", function loadHandler(message) {
     // Everything is loaded. Initialize the New Tab Page.
-    removeMessageListener("NewTabFrame:init", foo);
+    removeMessageListener("NewTabFrame:Init", loadHandler);
     initRemotePage(message.data);
   });
   sendAsyncMessage("NewTabFrame:GetInit");
