@@ -59,12 +59,6 @@
 
     let iframe = getIframe();
     iframe.src = remoteNewTabLocation.href;
-
-    // Check if iframe already fired its onload event
-    if (iframe.contentDocument.readyState === "complete") {
-      loadHandler();
-      return;
-    }
     iframe.addEventListener("load", loadHandler);
   }
 
