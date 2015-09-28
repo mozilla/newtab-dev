@@ -2,14 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* globals Services, XPCOMUtils, RemotePages, RemoteNewTabLocation, RemoteNewTabUtils  */
+/* globals BackgroundPageThumbs, PageThumbsStorage, RemoteDirectoryLinksProvider */
+/* exported RemoteAboutNewTab */
+
 "use strict";
 
-let Cc = Components.classes;
 let Ci = Components.interfaces;
 let Cu = Components.utils;
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
-this.EXPORTED_SYMBOLS = [ "RemoteAboutNewTab" ];
+this.EXPORTED_SYMBOLS = ["RemoteAboutNewTab"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -28,7 +31,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
   "resource:///modules/RemoteDirectoryLinksProvider.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
   "resource:///modules/RemoteNewTabLocation.jsm");
-
 
 let RemoteAboutNewTab = {
 
@@ -67,7 +69,7 @@ let RemoteAboutNewTab = {
   /**
    * Updates whether the New Tab Page feature is enabled/enhanced.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        enabled (Boolean):
@@ -91,7 +93,7 @@ let RemoteAboutNewTab = {
    * Fetch all the links and send them down to the child to populate
    * the grid with.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message.
    */
   initializeGrid: function(message) {
@@ -107,7 +109,7 @@ let RemoteAboutNewTab = {
   /**
    * Updates the grid by getting a new set of links.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message.
    */
   updateGrid: function(message) {
@@ -123,7 +125,7 @@ let RemoteAboutNewTab = {
    * dragged onto the grid, we will receive a message to both pin the dragged
    * site and to ensure that the dragged site is not blocked.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        index (Integer):
@@ -161,7 +163,7 @@ let RemoteAboutNewTab = {
   /**
    * Unpins a site and updates all pages.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        link (Object):
@@ -190,7 +192,7 @@ let RemoteAboutNewTab = {
   /**
    * Replaces the old pinned link if it has expired with a new link.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        oldURL (String):
@@ -216,7 +218,7 @@ let RemoteAboutNewTab = {
   /**
    * Blocks the site (removes it from the grid) and updates all pages.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        link (Object):
@@ -247,7 +249,7 @@ let RemoteAboutNewTab = {
    * If we receive a message that the site was previously pinned, also re-pin
    * the site.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        wasPinned (Boolean):
@@ -283,7 +285,7 @@ let RemoteAboutNewTab = {
   /**
    * Restores all blocked sites from the grid and updates all pages.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message.
    */
   undoAll: function(message) {
@@ -296,7 +298,7 @@ let RemoteAboutNewTab = {
     /**
    * Captures the site's thumbnail in the background, then attemps to show the thumbnail.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        link (Object):
@@ -328,7 +330,7 @@ let RemoteAboutNewTab = {
    * thumbnail is of type "enhanced", get the file path for the URL and create
    * and enhanced URI that will be sent down to the child.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        link (Object):
@@ -371,7 +373,7 @@ let RemoteAboutNewTab = {
   /**
    * Update all open about:newtab pages based on the new state of the page.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message. Since many places are calling this
    *        function, all of which are passing different messages in, this
    *        parameter may vary based on the caller. In all cases though, we
@@ -398,7 +400,7 @@ let RemoteAboutNewTab = {
   /**
     * Speculatively opens a connection to the given site.
     */
-  speculativeConnect: function (message) {
+  speculativeConnect: function(message) {
     let sc = Services.io.QueryInterface(Ci.nsISpeculativeConnect);
     let uri = Services.io.newURI(message.data.url, null, null);
     sc.speculativeConnect(uri, null);
@@ -431,7 +433,7 @@ let RemoteAboutNewTab = {
   /**
    * Reports all actions performed on a site to the Directory Links Provider.
    *
-   * @param message
+   * @param {Object} message
    *        A RemotePageManager message with the following data:
    *
    *        length (Integer):
@@ -466,10 +468,10 @@ let RemoteAboutNewTab = {
    * also clear the links cache and update the set of links to display, as they
    * may have changed, then proceed with the page update.
    */
-  observe: function(aSubject, aTopic, aData) {
+  observe: function(aSubject, aTopic, aData) { // jshint ignore:line
     let extraData;
     let refreshPage = false;
-    if (aTopic == "nsPref:changed") {
+    if (aTopic === "nsPref:changed") {
       switch (aData) {
         case "browser.newtabpage.enabled":
           RemoteNewTabUtils.allPages._enabled = null;
@@ -488,10 +490,10 @@ let RemoteAboutNewTab = {
           RemoteNewTabUtils.blockedLinks.resetCache();
           break;
       }
-    } else if (aTopic == "browser:purge-session-history") {
-        RemoteNewTabUtils.links.resetCache();
-        RemoteNewTabUtils.links.populateCache(() => {
-          this.pageListener.sendAsyncMessage("NewTab:UpdateLinks", {
+    } else if (aTopic === "browser:purge-session-history") {
+      RemoteNewTabUtils.links.resetCache();
+      RemoteNewTabUtils.links.populateCache(() => {
+        this.pageListener.sendAsyncMessage("NewTab:UpdateLinks", {
           links: RemoteNewTabUtils.links.getLinks(),
           pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
           enhancedLinks: this.getEnhancedLinks(),

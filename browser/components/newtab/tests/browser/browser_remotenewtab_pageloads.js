@@ -1,3 +1,6 @@
+/* globals XPCOMUtils, RemoteAboutNewTab, RemoteNewTabLocation, ok */
+"use strict";
+
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -7,7 +10,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteAboutNewTab",
   "resource:///modules/RemoteAboutNewTab.jsm");
 
-const TEST_URL = "https://example.com/browser/browser/components/newtab/tests/browser/dummy_page.html"
+const TEST_URL = "https://example.com/browser/browser/components/newtab/tests/browser/dummy_page.html";
 
 /*
  * Tests that:

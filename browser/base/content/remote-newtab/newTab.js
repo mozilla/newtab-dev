@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*globals Components, sendAsyncMessage, addMessageListener*/
+/*globals Components, sendAsyncMessage, addMessageListener, removeMessageListener*/
 
 "use strict";
 (function() {
@@ -42,7 +42,7 @@
     // Messages that the iframe sends the browser will be passed onto
     // the privileged parent process
     remoteNewTabLocation = initData;
-    let remoteIFrame = document.querySelector('#remotedoc');
+    let remoteIFrame = document.querySelector("#remotedoc");
 
     let loadHandler = () => {
       remoteIFrame.removeEventListener("load", loadHandler);
@@ -65,7 +65,7 @@
     // Messages that the privileged parent process sends will be passed
     // onto the iframe
     addMessageListener(event, (message) => {
-      let remoteIFrame = document.querySelector('#remotedoc');
+      let remoteIFrame = document.querySelector("#remotedoc");
       remoteIFrame.contentWindow.postMessage(message, remoteNewTabLocation.origin);
     });
   }
@@ -83,7 +83,7 @@
         .getInterface(Ci.nsIDOMWindowUtils).outerWindowID,
       privateBrowsingMode: isPrivate
     };
-    let remoteIFrame = document.querySelector('#remotedoc');
+    let remoteIFrame = document.querySelector("#remotedoc");
     remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
       data: state
