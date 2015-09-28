@@ -1,8 +1,8 @@
-/* globals XPCOMUtils, RemoteAboutNewTab, RemoteNewTabLocation, ok */
+/* globals XPCOMUtils, Task, RemoteAboutNewTab, RemoteNewTabLocation, ok */
 "use strict";
 
 let Cu = Components.utils;
-
+Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
@@ -12,34 +12,36 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteAboutNewTab",
 
 const TEST_URL = "https://example.com/browser/browser/components/newtab/tests/browser/dummy_page.html";
 
+let tests = [];
+
 /*
  * Tests that:
  * 1. overriding the RemoteNewTabPageLocation url causes a remote newtab page
  *    to load with the new url.
  * 2. Messages pass between remote page <--> newTab.js <--> RemoteAboutNewTab.js
  */
-add_task(function* open_newtab() {
-  RemoteNewTabLocation.override(TEST_URL);
-
-  let frameLoadPromise = new Promise(resolve => {
+tests.push(Task.spawn(function* testMessage() {
+  yield new Promise(resolve => {
     RemoteAboutNewTab.pageListener.addMessageListener("NewTab:testMessage", () => {
       ok(true, "message received");
       resolve();
     });
   });
+}));
 
-  let loaded = new Promise(resolve => {
-    gBrowser.selectedBrowser.addEventListener("load", listener, true);
-    let tab = gBrowser.selectedTab = gBrowser.addTab("about:remote-newtab");
-    function listener() {
-      tab.linkedBrowser.removeEventListener("load", listener, true);
-      resolve();
-    }
-    tab.linkedBrowser.addEventListener("load", listener, true);
-  });
+add_task(function* open_newtab() {
+  RemoteNewTabLocation.override(TEST_URL);
+  let tabOptions = {
+    gBrowser,
+    url: "about:remote-newtab"
+  };
 
-  yield loaded;
-  yield frameLoadPromise;
+  function* testLoader() {
+    yield Promise.all(tests);
+  }
 
-  gBrowser.removeCurrentTab();
+  yield BrowserTestUtils.withNewTab(
+      tabOptions,
+      browser => testLoader // jshint ignore:line
+  );
 });
