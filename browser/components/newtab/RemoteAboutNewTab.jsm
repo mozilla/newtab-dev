@@ -1,10 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*globals Services, XPCOMUtils, Task, SearchProvider, RemoteNewTabUtils, BackgroundPageThumbs,
+  RemotePages, PageThumbs, RemoteDirectoryLinksProvider, RemoteNewTabLocation*/
 
-/* globals Services, XPCOMUtils, RemotePages, RemoteNewTabLocation, RemoteNewTabUtils, Task  */
-/* globals BackgroundPageThumbs, PageThumbs, RemoteDirectoryLinksProvider */
-/* exported RemoteAboutNewTab */
+ /* exported RemoteAboutNewTab */
 
 "use strict";
 
@@ -31,6 +31,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
   "resource:///modules/RemoteDirectoryLinksProvider.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
   "resource:///modules/RemoteNewTabLocation.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "SearchProvider",
+  "resource:///modules/SearchProvider.jsm");
+
 
 let RemoteAboutNewTab = {
 
@@ -39,7 +42,7 @@ let RemoteAboutNewTab = {
   /**
    * Initialize the RemotePageManager and add all message listeners for this page
    */
-  init: function() {
+  init: function () {
     this.pageListener = new RemotePages("about:remote-newtab");
     this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
@@ -57,6 +60,14 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
     this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
     this.pageListener.addMessageListener("NewTab:RecordSiteClicked", this.recordSiteClicked.bind(this));
+    this.pageListener.addMessageListener("NewTab:Search", this.search.bind(this));
+    this.pageListener.addMessageListener("NewTab:GetState", this.getState.bind(this));
+    this.pageListener.addMessageListener("NewTab:GetStrings", this.getStrings.bind(this));
+    this.pageListener.addMessageListener("NewTab:GetSuggestions", this.getSuggestions.bind(this));
+    this.pageListener.addMessageListener("NewTab:RemoveFormHistoryEntry", this.removeFormHistoryEntry.bind(this));
+    this.pageListener.addMessageListener("NewTab:AddFormHistoryEntry", this.addFormHistoryEntry.bind(this));
+    this.pageListener.addMessageListener("NewTab:ManageEngines", this.manageEngines.bind(this));
+    this.pageListener.addMessageListener("NewTab:SetCurrentEngine", this.setCurrentEngine.bind(this));
     this.pageListener.addMessageListener("NewTabFrame:GetInit", () => {
       this.pageListener.sendAsyncMessage("NewTabFrame:Init", {
         href: RemoteNewTabLocation.href,
@@ -65,6 +76,51 @@ let RemoteAboutNewTab = {
     });
 
     this._addObservers();
+  },
+
+  search: function (message) {
+    SearchProvider.performSearch(message.target.browser, message.data);
+  },
+
+  getState: Task.async(function* (message) {
+    let state = yield SearchProvider.state;
+    message.target.sendAsyncMessage("NewTab:ContentSearchService", {
+      state,
+      name: "State",
+    });
+  }),
+
+  getStrings: function (message) {
+    let strings = SearchProvider.searchSuggestionUIStrings;
+    message.target.sendAsyncMessage("NewTab:ContentSearchService", {
+      strings,
+      name: "Strings",
+    });
+  },
+
+  getSuggestions: Task.async(function* (message) {
+    let suggestion = yield SearchProvider.getSuggestions(message.target.browser, message.data);
+    message.target.sendAsyncMessage("NewTab:ContentSearchService", {
+      suggestion,
+      name: "Suggestions",
+    });
+  }),
+
+  removeFormHistoryEntry: function (message) {
+    SearchProvider.removeFormHistoryEntry(message.target.browser, message.data.suggestionStr);
+  },
+
+  addFormHistoryEntry: function (message) {
+    SearchProvider.addFormHistoryEntry(message.target.browser, message.data.entry);
+  },
+
+  manageEngines: function (message) {
+    let browserWin = message.target.browser.ownerDocument.defaultView;
+    browserWin.openPreferences("paneSearch");
+  },
+
+  setCurrentEngine: function (message) {
+    Services.search.currentEngine = Services.search.getEngineByName(message.data.engineName);
   },
 
   /**
@@ -80,7 +136,7 @@ let RemoteAboutNewTab = {
    *          Sets the value which will enable or disable the enhancement of
    *          history tiles feature.
    */
-  customize: function(message) {
+  customize: function (message) {
     if (message.data.enabled !== undefined) {
       RemoteNewTabUtils.allPages.enabled = message.data.enabled;
     }
@@ -97,7 +153,7 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  initializeGrid: function(message) {
+  initializeGrid: function (message) {
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
@@ -113,7 +169,7 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  updateGrid: function(message) {
+  updateGrid: function (message) {
     message.target.sendAsyncMessage("NewTab:UpdateLinks", {
       links: RemoteNewTabUtils.links.getLinks(),
       pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
@@ -146,7 +202,7 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  pinLink: function(message) {
+  pinLink: function (message) {
     let link = message.data.link;
     let index = message.data.index;
     RemoteNewTabUtils.pinnedLinks.pin(link, index);
@@ -179,7 +235,7 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  unpinLink: function(message) {
+  unpinLink: function (message) {
     let link = message.data.link;
     RemoteNewTabUtils.pinnedLinks.unpin(link);
     message.target.sendAsyncMessage("NewTab:PinState", {
@@ -210,7 +266,7 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  replacePinLink: function(message) {
+  replacePinLink: function (message) {
     let oldUrl = message.data.oldUrl;
     let link = message.data.link;
     RemoteNewTabUtils.pinnedLinks.replace(oldUrl, link);
@@ -234,7 +290,7 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  block: function(message) {
+  block: function (message) {
     let link = message.data.link;
     RemoteNewTabUtils.blockedLinks.block(link);
     message.target.sendAsyncMessage("NewTab:BlockState", {
@@ -268,7 +324,7 @@ let RemoteAboutNewTab = {
    *          type (String)
    *          url (String)
    */
-  unblock: function(message) {
+  unblock: function (message) {
     let link = message.data.link;
     RemoteNewTabUtils.blockedLinks.unblock(link);
     message.target.sendAsyncMessage("NewTab:BlockState", {
@@ -289,8 +345,8 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  undoAll: function(message) {
-    RemoteNewTabUtils.undoAll(function() {
+  undoAll: function (message) {
+    RemoteNewTabUtils.undoAll(function () {
       message.target.sendAsyncMessage("NewTab:Restore");
       this.updatePages(message);
     }.bind(this));
@@ -352,7 +408,7 @@ let RemoteAboutNewTab = {
     let canvas = doc.createElementNS(XHTML_NAMESPACE, "canvas");
     let enhanced = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
 
-    img.onload = function(e) { // jshint ignore:line
+    img.onload = function () {
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       var ctx = canvas.getContext("2d");
@@ -379,7 +435,7 @@ let RemoteAboutNewTab = {
    *        parameter may vary based on the caller. In all cases though, we
    *        retrieve the outer window ID of the message's selected browser.
    */
-  updatePages: function(message) {
+  updatePages: function (message) {
     let tabbrowser = message.target ? message.target.browser.getTabBrowser() : message;
     let outerWindowID = tabbrowser ? tabbrowser.selectedBrowser.outerWindowID : null;
     this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
@@ -392,7 +448,7 @@ let RemoteAboutNewTab = {
     });
   },
 
-  updateTest: function(gBrowser) {
+  updateTest: function (gBrowser) {
     let browser = gBrowser;
     this.updatePages(browser);
   },
@@ -409,11 +465,11 @@ let RemoteAboutNewTab = {
   /**
    * Record interaction with site using telemetry.
    */
-  recordSiteClicked: function(message) {
+  recordSiteClicked: function (message) {
     let index = Number.parseInt(message.data.index);
     if (Services.prefs.prefHasUserValue("browser.newtabpage.rows") ||
-        Services.prefs.prefHasUserValue("browser.newtabpage.columns") ||
-        index > 8) {
+      Services.prefs.prefHasUserValue("browser.newtabpage.columns") ||
+      index > 8) {
       // We only want to get indices for the default configuration, everything
       // else goes in the same bucket.
       index = 9;
@@ -425,7 +481,7 @@ let RemoteAboutNewTab = {
    * Update the preferences to indicate that the intro has been shown, and we
    * do not need to show the intro again.
    */
-  showIntro: function() {
+  showIntro: function () {
     Services.prefs.setBoolPref("browser.newtabpage.introShown", true);
     Services.prefs.setBoolPref("browser.newtabpage.updateIntroShown", true);
   },
@@ -443,7 +499,7 @@ let RemoteAboutNewTab = {
    *        index (Integer):
    *          The tile index from which the action came from.
    */
-  reportSitesAction: function(message) {
+  reportSitesAction: function (message) {
     // Convert sites to objects.
     let parsedSites = message.data.sites.map(site => JSON.parse(site));
     RemoteDirectoryLinksProvider.reportSitesAction(parsedSites, message.data.action, message.data.index);
@@ -452,7 +508,7 @@ let RemoteAboutNewTab = {
   /**
    * Get the set of enhanced links (if any) from the Directory Links Provider.
    */
-  getEnhancedLinks: function() {
+  getEnhancedLinks: function () {
     let enhancedLinks = [];
     for (let link of RemoteNewTabUtils.links.getLinks()) {
       if (link) {
@@ -473,22 +529,30 @@ let RemoteAboutNewTab = {
     let refreshPage = false;
     if (aTopic === "nsPref:changed") {
       switch (aData) {
-        case "browser.newtabpage.enabled":
-          RemoteNewTabUtils.allPages._enabled = null;
-          refreshPage = true;
-          extraData = Services.prefs.getBoolPref("browser.newtabpage.enabled");
-          break;
-        case "browser.newtabpage.enhanced":
-          RemoteNewTabUtils.allPages._enhanced = null;
-          refreshPage = true;
-          extraData = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
-          break;
-        case "browser.newtabpage.pinned":
-          RemoteNewTabUtils.pinnedLinks.resetCache();
-          break;
-        case "browser.newtabpage.blocked":
-          RemoteNewTabUtils.blockedLinks.resetCache();
-          break;
+      case "browser.newtabpage.enabled":
+        RemoteNewTabUtils.allPages.enabled = null;
+        refreshPage = true;
+        extraData = Services.prefs.getBoolPref("browser.newtabpage.enabled");
+        break;
+      case "browser.newtabpage.enhanced":
+        RemoteNewTabUtils.allPages.enhanced = null;
+        refreshPage = true;
+        extraData = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
+        break;
+      case "browser.newtabpage.pinned":
+        RemoteNewTabUtils.pinnedLinks.resetCache();
+        break;
+      case "browser.newtabpage.blocked":
+        RemoteNewTabUtils.blockedLinks.resetCache();
+        break;
+      case "browser.search.hiddenOneOffs":
+        Task.spawn(function* () {
+          let state = yield SearchProvider.state;
+          this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+            state, name: "CurrentState"
+          });
+        }.bind(this));
+        break;
       }
     } else if (aTopic === "browser:purge-session-history") {
       RemoteNewTabUtils.links.resetCache();
@@ -499,6 +563,13 @@ let RemoteAboutNewTab = {
           enhancedLinks: this.getEnhancedLinks(),
         });
       });
+    } else if (aTopic === "browser-search-engine-modified" && aData === "engine-current") {
+      Task.spawn(function* () {
+        let engine = yield SearchProvider.getCurrentEngine();
+        this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+          engine, name: "CurrentEngine"
+        });
+      }.bind(this));
     }
 
     if (extraData !== undefined || aTopic === "page-thumbnail:create") {
@@ -506,7 +577,10 @@ let RemoteAboutNewTab = {
         // Change the topic for enhanced and enabled observers.
         aTopic = aData;
       }
-      this.pageListener.sendAsyncMessage("NewTab:Observe", {topic: aTopic, data: extraData});
+      this.pageListener.sendAsyncMessage("NewTab:Observe", {
+        topic: aTopic,
+        data: extraData
+      });
     }
 
     this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
@@ -521,13 +595,15 @@ let RemoteAboutNewTab = {
   /**
    * Add all observers that about:newtab page must listen for.
    */
-  _addObservers: function() {
+  _addObservers: function () {
     Services.prefs.addObserver("browser.newtabpage.enabled", this, true);
     Services.prefs.addObserver("browser.newtabpage.enhanced", this, true);
     Services.prefs.addObserver("browser.newtabpage.rows", this, true);
     Services.prefs.addObserver("browser.newtabpage.columns", this, true);
     Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
     Services.prefs.addObserver("browser.newtabpage.blocked", this, true);
+    Services.prefs.addObserver("browser.search.hiddenOneOffs", this, true);
+    Services.obs.addObserver(this, "browser-search-engine-modified", true);
     Services.obs.addObserver(this, "page-thumbnail:create", true);
     Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
@@ -535,21 +611,24 @@ let RemoteAboutNewTab = {
   /**
    * Remove all observers on the page.
    */
-  _removeObservers: function() {
+  _removeObservers: function () {
     Services.prefs.removeObserver("browser.newtabpage.enabled", this);
     Services.prefs.removeObserver("browser.newtabpage.enhanced", this);
     Services.prefs.removeObserver("browser.newtabpage.rows", this);
     Services.prefs.removeObserver("browser.newtabpage.columns", this);
     Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
     Services.prefs.addObserver("browser.newtabpage.blocked", this, true);
+    Services.prefs.addObserver("browser.search.hiddenOneOffs", this, true);
+    Services.obs.removeObserver(this, "browser-search-engine-modified", true);
     Services.obs.removeObserver(this, "page-thumbnail:create");
     Services.obs.removeObserver(this, "browser:purge-session-history");
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
-                                         Ci.nsISupportsWeakReference]),
+    Ci.nsISupportsWeakReference
+  ]),
 
-  uninit: function() {
+  uninit: function () {
     this._removeObservers();
     this.pageListener.destroy();
     this.pageListener = null;
