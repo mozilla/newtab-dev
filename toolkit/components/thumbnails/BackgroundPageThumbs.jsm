@@ -80,21 +80,27 @@ const BackgroundPageThumbs = {
    * @param url      The URL to capture.
    * @param options  An optional object that configures the capture.  See
    *                 capture() for description.
+   * @return {Promise} Promise;
    */
   captureIfMissing: function (url, options={}) {
-    // The fileExistsForURL call is an optimization, potentially but unlikely
-    // incorrect, and no big deal when it is.  After the capture is done, we
-    // atomically test whether the file exists before writing it.
-    PageThumbsStorage.fileExistsForURL(url).then(exists => {
-      if (exists) {
-        if (options.onDone)
+    return new Promise((resolve, reject)=>{
+      // The fileExistsForURL call is an optimization, potentially but unlikely
+      // incorrect, and no big deal when it is.  After the capture is done, we
+      // atomically test whether the file exists before writing it.
+      PageThumbsStorage.fileExistsForURL(url).then(exists => {
+        if (exists) {
+          if (options.onDone){
+            options.onDone(url);
+          }
+          return resolve(url);
+        }
+        this.capture(url, options);
+      }, err => {
+        if (options.onDone){
           options.onDone(url);
-        return;
-      }
-      this.capture(url, options);
-    }, err => {
-      if (options.onDone)
-        options.onDone(url);
+        }
+        reject(err);
+      });
     });
   },
 
