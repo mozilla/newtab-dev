@@ -41,51 +41,14 @@ let RemoteAboutNewTab = {
    */
   init: function() {
     this.pageListener = new RemotePages("about:remote-newtab");
-    this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
-    this.pageListener.addMessageListener("NewTab:UpdatePages", this.updatePages.bind(this));
-    this.pageListener.addMessageListener("NewTab:ReplacePinLink", this.replacePinLink.bind(this));
-    this.pageListener.addMessageListener("NewTab:BlockLink", this.block.bind(this));
-    this.pageListener.addMessageListener("NewTab:UnblockLink", this.unblock.bind(this));
-    this.pageListener.addMessageListener("NewTab:UndoAll", this.undoAll.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
         this.captureBackgroundPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
-    this.pageListener.addMessageListener("NewTab:IntroShown", this.showIntro.bind(this));
-    this.pageListener.addMessageListener("NewTab:ReportSitesAction", this.reportSitesAction.bind(this));
-    this.pageListener.addMessageListener("NewTab:SpeculativeConnect", this.speculativeConnect.bind(this));
-    this.pageListener.addMessageListener("NewTab:RecordSiteClicked", this.recordSiteClicked.bind(this));
-    this.pageListener.addMessageListener("NewTabFrame:GetInit", () => {
-      this.pageListener.sendAsyncMessage("NewTabFrame:Init", {
-        href: RemoteNewTabLocation.href,
-        origin: RemoteNewTabLocation.origin
-      });
-    });
+    this.pageListener.addMessageListener("NewTabFrame:GetInit", this.initContentFrame.bind(this));
 
     this._addObservers();
-  },
-
-  /**
-   * Updates whether the New Tab Page feature is enabled/enhanced.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        enabled (Boolean):
-   *          Sets the value which will enable or disable the 'New Tab Page'
-   *          feature.
-   *        enhanced (Boolean):
-   *          Sets the value which will enable or disable the enhancement of
-   *          history tiles feature.
-   */
-  customize: function(message) {
-    if (message.data.enabled !== undefined) {
-      RemoteNewTabUtils.allPages.enabled = message.data.enabled;
-    }
-    if (message.data.enhanced !== undefined) {
-      RemoteNewTabUtils.allPages.enhanced = message.data.enhanced;
-    }
   },
 
   /**
@@ -100,9 +63,18 @@ let RemoteAboutNewTab = {
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
-        pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
         enhancedLinks: this.getEnhancedLinks(),
       });
+    });
+  },
+
+  /**
+   * Inits the content iframe with the newtab location
+   */
+  initContentFrame: function(message) {
+    message.target.sendAsyncMessage("NewTabFrame:Init", {
+      href: RemoteNewTabLocation.href,
+      origin: RemoteNewTabLocation.origin
     });
   },
 
@@ -115,115 +87,8 @@ let RemoteAboutNewTab = {
   updateGrid: function(message) {
     message.target.sendAsyncMessage("NewTab:UpdateLinks", {
       links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
       enhancedLinks: this.getEnhancedLinks(),
     });
-  },
-
-  /**
-   * Replaces the old pinned link if it has expired with a new link.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        oldURL (String):
-   *          The old URL to be removed.
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  replacePinLink: function(message) {
-    let oldUrl = message.data.oldUrl;
-    let link = message.data.link;
-    RemoteNewTabUtils.pinnedLinks.replace(oldUrl, link);
-  },
-
-  /**
-   * Blocks the site (removes it from the grid) and updates all pages.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  block: function(message) {
-    let link = message.data.link;
-    RemoteNewTabUtils.blockedLinks.block(link);
-    message.target.sendAsyncMessage("NewTab:BlockState", {
-      blockState: RemoteNewTabUtils.blockedLinks.isBlocked(message.data.link),
-      links: RemoteNewTabUtils.links.getLinks(),
-      link,
-    });
-    this.updatePages(message);
-  },
-
-  /**
-   * Unblocks the site (returns it to the grid) and updates all pages.
-   * If we receive a message that the site was previously pinned, also re-pin
-   * the site.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        wasPinned (Boolean):
-   *          The indicator to re-pin a blocked site. If true, we must
-   *          re-pin the site and restore the pin state.
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  unblock: function(message) {
-    let link = message.data.link;
-    RemoteNewTabUtils.blockedLinks.unblock(link);
-    message.target.sendAsyncMessage("NewTab:BlockState", {
-      blockState: RemoteNewTabUtils.blockedLinks.isBlocked(message.data.link),
-      link,
-    });
-
-    if (message.data.wasPinned) {
-      this.pinLink(message);
-    } else {
-      this.updatePages(message);
-    }
-  },
-
-  /**
-   * Restores all blocked sites from the grid and updates all pages.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message.
-   */
-  undoAll: function(message) {
-    RemoteNewTabUtils.undoAll(function() {
-      message.target.sendAsyncMessage("NewTab:Restore");
-      this.updatePages(message);
-    }.bind(this));
   },
 
   /**
@@ -301,85 +166,6 @@ let RemoteAboutNewTab = {
   },
 
   /**
-   * Update all open about:newtab pages based on the new state of the page.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message. Since many places are calling this
-   *        function, all of which are passing different messages in, this
-   *        parameter may vary based on the caller. In all cases though, we
-   *        retrieve the outer window ID of the message's selected browser.
-   */
-  updatePages: function(message) {
-    let tabbrowser = message.target ? message.target.browser.getTabBrowser() : message;
-    let outerWindowID = tabbrowser ? tabbrowser.selectedBrowser.outerWindowID : null;
-    this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
-      links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
-      refreshPage: true,
-      enhancedLinks: this.getEnhancedLinks(),
-      reason: RemoteNewTabUtils.links._reason,
-      outerWindowID,
-    });
-  },
-
-  updateTest: function(gBrowser) {
-    let browser = gBrowser;
-    this.updatePages(browser);
-  },
-
-  /**
-    * Speculatively opens a connection to the given site.
-    */
-  speculativeConnect: function(message) {
-    let sc = Services.io.QueryInterface(Ci.nsISpeculativeConnect);
-    let uri = Services.io.newURI(message.data.url, null, null);
-    sc.speculativeConnect(uri, null);
-  },
-
-  /**
-   * Record interaction with site using telemetry.
-   */
-  recordSiteClicked: function(message) {
-    let index = Number.parseInt(message.data.index);
-    if (Services.prefs.prefHasUserValue("browser.newtabpage.rows") ||
-        Services.prefs.prefHasUserValue("browser.newtabpage.columns") ||
-        index > 8) {
-      // We only want to get indices for the default configuration, everything
-      // else goes in the same bucket.
-      index = 9;
-    }
-    Services.telemetry.getHistogramById("NEWTAB_PAGE_SITE_CLICKED").add(message.data.index);
-  },
-
-  /**
-   * Update the preferences to indicate that the intro has been shown, and we
-   * do not need to show the intro again.
-   */
-  showIntro: function() {
-    Services.prefs.setBoolPref("browser.newtabpage.introShown", true);
-    Services.prefs.setBoolPref("browser.newtabpage.updateIntroShown", true);
-  },
-
-  /**
-   * Reports all actions performed on a site to the Directory Links Provider.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        length (Integer):
-   *          The number of sites displayed on the grid.
-   *        action (String):
-   *          The action performed on the site (e.g. "click", "pin", etc...).
-   *        index (Integer):
-   *          The tile index from which the action came from.
-   */
-  reportSitesAction: function(message) {
-    // Convert sites to objects.
-    let parsedSites = message.data.sites.map(site => JSON.parse(site));
-    RemoteDirectoryLinksProvider.reportSitesAction(parsedSites, message.data.action, message.data.index);
-  },
-
-  /**
    * Get the set of enhanced links (if any) from the Directory Links Provider.
    */
   getEnhancedLinks: function() {
@@ -401,31 +187,11 @@ let RemoteAboutNewTab = {
   observe: function(aSubject, aTopic, aData) { // jshint ignore:line
     let extraData;
     let refreshPage = false;
-    if (aTopic === "nsPref:changed") {
-      switch (aData) {
-        case "browser.newtabpage.enabled":
-          RemoteNewTabUtils.allPages._enabled = null;
-          refreshPage = true;
-          extraData = Services.prefs.getBoolPref("browser.newtabpage.enabled");
-          break;
-        case "browser.newtabpage.enhanced":
-          RemoteNewTabUtils.allPages._enhanced = null;
-          refreshPage = true;
-          extraData = Services.prefs.getBoolPref("browser.newtabpage.enhanced");
-          break;
-        case "browser.newtabpage.pinned":
-          RemoteNewTabUtils.pinnedLinks.resetCache();
-          break;
-        case "browser.newtabpage.blocked":
-          RemoteNewTabUtils.blockedLinks.resetCache();
-          break;
-      }
-    } else if (aTopic === "browser:purge-session-history") {
+    if (aTopic === "browser:purge-session-history") {
       RemoteNewTabUtils.links.resetCache();
       RemoteNewTabUtils.links.populateCache(() => {
         this.pageListener.sendAsyncMessage("NewTab:UpdateLinks", {
           links: RemoteNewTabUtils.links.getLinks(),
-          pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
           enhancedLinks: this.getEnhancedLinks(),
         });
       });
@@ -438,26 +204,12 @@ let RemoteAboutNewTab = {
       }
       this.pageListener.sendAsyncMessage("NewTab:Observe", {topic: aTopic, data: extraData});
     }
-
-    this.pageListener.sendAsyncMessage("NewTab:UpdatePages", {
-      links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
-      enhancedLinks: this.getEnhancedLinks(),
-      reason: RemoteNewTabUtils.links._reason,
-      refreshPage,
-    });
   },
 
   /**
    * Add all observers that about:newtab page must listen for.
    */
   _addObservers: function() {
-    Services.prefs.addObserver("browser.newtabpage.enabled", this, true);
-    Services.prefs.addObserver("browser.newtabpage.enhanced", this, true);
-    Services.prefs.addObserver("browser.newtabpage.rows", this, true);
-    Services.prefs.addObserver("browser.newtabpage.columns", this, true);
-    Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
-    Services.prefs.addObserver("browser.newtabpage.blocked", this, true);
     Services.obs.addObserver(this, "page-thumbnail:create", true);
     Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
@@ -466,12 +218,6 @@ let RemoteAboutNewTab = {
    * Remove all observers on the page.
    */
   _removeObservers: function() {
-    Services.prefs.removeObserver("browser.newtabpage.enabled", this);
-    Services.prefs.removeObserver("browser.newtabpage.enhanced", this);
-    Services.prefs.removeObserver("browser.newtabpage.rows", this);
-    Services.prefs.removeObserver("browser.newtabpage.columns", this);
-    Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
-    Services.prefs.addObserver("browser.newtabpage.blocked", this, true);
     Services.obs.removeObserver(this, "page-thumbnail:create");
     Services.obs.removeObserver(this, "browser:purge-session-history");
   },

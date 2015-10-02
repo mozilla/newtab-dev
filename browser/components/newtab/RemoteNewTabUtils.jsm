@@ -28,440 +28,11 @@ XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
   return Services.scriptSecurityManager.createCodebasePrincipal(uri, {});
 });
 
-XPCOMUtils.defineLazyGetter(this, "gCryptoHash", function () {
-  return Cc["@mozilla.org/security/hash;1"].createInstance(Ci.nsICryptoHash);
-});
-
-XPCOMUtils.defineLazyGetter(this, "gUnicodeConverter", function () {
-  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                    .createInstance(Ci.nsIScriptableUnicodeConverter);
-  converter.charset = 'utf8';
-  return converter;
-});
-
-// Boolean preferences that control newtab content
-const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
-const PREF_NEWTAB_ENHANCED = "browser.newtabpage.enhanced";
-
 // The maximum number of results PlacesProvider retrieves from history.
 const HISTORY_RESULTS_LIMIT = 100;
 
 // The maximum number of links Links.getLinks will return.
 const LINKS_GET_LINKS_LIMIT = 100;
-
-// The gather telemetry topic.
-const TOPIC_GATHER_TELEMETRY = "gather-telemetry";
-
-/**
- * Calculate the MD5 hash for a string.
- * @param aValue
- *        The string to convert.
- * @return The base64 representation of the MD5 hash.
- */
-function toHash(aValue) {
-  let value = gUnicodeConverter.convertToByteArray(aValue);
-  gCryptoHash.init(gCryptoHash.MD5);
-  gCryptoHash.update(value, value.length);
-  return gCryptoHash.finish(true);
-}
-
-/**
- * Singleton that provides storage functionality.
- */
-XPCOMUtils.defineLazyGetter(this, "Storage", function() {
-  return new LinksStorage();
-});
-
-function LinksStorage() {
-  // Handle migration of data across versions.
-  try {
-    if (this._storedVersion < this._version) {
-      // This is either an upgrade, or version information is missing.
-      if (this._storedVersion < 1) {
-        // Version 1 moved data from DOM Storage to prefs.  Since migrating from
-        // version 0 is no more supported, we just reportError a dataloss later.
-        throw new Error("Unsupported newTab storage version");
-      }
-      // Add further migration steps here.
-    }
-    else {
-      // This is a downgrade.  Since we cannot predict future, upgrades should
-      // be backwards compatible.  We will set the version to the old value
-      // regardless, so, on next upgrade, the migration steps will run again.
-      // For this reason, they should also be able to run multiple times, even
-      // on top of an already up-to-date storage.
-    }
-  } catch (ex) {
-    // Something went wrong in the update process, we can't recover from here,
-    // so just clear the storage and start from scratch (dataloss!).
-    Components.utils.reportError(
-      "Unable to migrate the newTab storage to the current version. "+
-      "Restarting from scratch.\n" + ex);
-    this.clear();
-  }
-
-  // Set the version to the current one.
-  this._storedVersion = this._version;
-}
-
-LinksStorage.prototype = {
-  get _version() 1,
-
-  get _prefs() Object.freeze({
-    pinnedLinks: "browser.newtabpage.pinned",
-    blockedLinks: "browser.newtabpage.blocked",
-  }),
-
-  get _storedVersion() {
-    if (this.__storedVersion === undefined) {
-      try {
-        this.__storedVersion =
-          Services.prefs.getIntPref("browser.newtabpage.storageVersion");
-      } catch (ex) {
-        // The storage version is unknown, so either:
-        // - it's a new profile
-        // - it's a profile where versioning information got lost
-        // In this case we still run through all of the valid migrations,
-        // starting from 1, as if it was a downgrade.  As previously stated the
-        // migrations should already support running on an updated store.
-        this.__storedVersion = 1;
-      }
-    }
-    return this.__storedVersion;
-  },
-  set _storedVersion(aValue) {
-    Services.prefs.setIntPref("browser.newtabpage.storageVersion", aValue);
-    this.__storedVersion = aValue;
-    return aValue;
-  },
-
-  /**
-   * Gets the value for a given key from the storage.
-   * @param aKey The storage key (a string).
-   * @param aDefault A default value if the key doesn't exist.
-   * @return The value for the given key.
-   */
-  get: function Storage_get(aKey, aDefault) {
-    let value;
-    try {
-      let prefValue = Services.prefs.getComplexValue(this._prefs[aKey],
-                                                     Ci.nsISupportsString).data;
-      value = JSON.parse(prefValue);
-    } catch (e) {}
-    return value || aDefault;
-  },
-
-  /**
-   * Sets the storage value for a given key.
-   * @param aKey The storage key (a string).
-   * @param aValue The value to set.
-   */
-  set: function Storage_set(aKey, aValue) {
-    // Page titles may contain unicode, thus use complex values.
-    let string = Cc["@mozilla.org/supports-string;1"]
-                   .createInstance(Ci.nsISupportsString);
-    string.data = JSON.stringify(aValue);
-    Services.prefs.setComplexValue(this._prefs[aKey], Ci.nsISupportsString,
-                                   string);
-  },
-
-  /**
-   * Removes the storage value for a given key.
-   * @param aKey The storage key (a string).
-   */
-  remove: function Storage_remove(aKey) {
-    Services.prefs.clearUserPref(this._prefs[aKey]);
-  },
-
-  /**
-   * Clears the storage and removes all values.
-   */
-  clear: function Storage_clear() {
-    for (let key in this._prefs) {
-      this.remove(key);
-    }
-  }
-};
-
-
-/**
- * Singleton that serves as a registry for all open 'New Tab Page's.
- */
-let AllPages = {
-
-  /**
-   * Cached value that tells whether the New Tab Page feature is enabled.
-   */
-  _enabled: null,
-
-  /**
-   * Cached value that tells whether the New Tab Page feature is enhanced.
-   */
-  _enhanced: null,
-
-  /**
-   * Returns whether the 'New Tab Page' is enabled.
-   */
-  get enabled() {
-    if (this._enabled === null)
-      this._enabled = Services.prefs.getBoolPref(PREF_NEWTAB_ENABLED);
-
-    return this._enabled;
-  },
-
-  /**
-   * Enables or disables the 'New Tab Page' feature.
-   */
-  set enabled(aEnabled) {
-    if (this.enabled != aEnabled)
-      Services.prefs.setBoolPref(PREF_NEWTAB_ENABLED, !!aEnabled);
-  },
-
-  /**
-   * Returns whether the history tiles are enhanced.
-   */
-  get enhanced() {
-    if (this._enhanced === null)
-      this._enhanced = Services.prefs.getBoolPref(PREF_NEWTAB_ENHANCED);
-
-    return this._enhanced;
-  },
-
-  /**
-   * Enables or disables the enhancement of history tiles feature.
-   */
-  set enhanced(aEnhanced) {
-    if (this.enhanced != aEnhanced)
-      Services.prefs.setBoolPref(PREF_NEWTAB_ENHANCED, !!aEnhanced);
-  },
-};
-
-/**
- * Singleton that keeps track of all pinned links and their positions in the
- * grid.
- */
-let PinnedLinks = {
-  /**
-   * The cached list of pinned links.
-   */
-  _links: null,
-
-  /**
-   * The array of pinned links.
-   */
-  get links() {
-    if (!this._links)
-      this._links = Storage.get("pinnedLinks", []);
-
-    return this._links;
-  },
-
-  /**
-   * Pins a link at the given position.
-   * @param aLink The link to pin.
-   * @param aIndex The grid index to pin the cell at.
-   */
-  pin: function PinnedLinks_pin(aLink, aIndex) {
-    // Clear the link's old position, if any.
-    this.unpin(aLink);
-
-    // change pinned link into a history link and update pin state
-    this._makeHistoryLink(aLink);
-    this.links[aIndex] = aLink;
-    this.links[aIndex].pinState = true;
-    this.save();
-    aLink.pinState = true;
-  },
-
-  /**
-   * Unpins a given link.
-   * @param aLink The link to unpin.
-   */
-  unpin: function PinnedLinks_unpin(aLink) {
-    let index = this._indexOfLink(aLink);
-    if (index == -1)
-      return;
-    let links = this.links;
-    links[index] = null;
-    // trim trailing nulls
-    let i=links.length-1;
-    while (i >= 0 && links[i] == null)
-      i--;
-    links.splice(i +1);
-    this.save();
-    aLink.pinState = false;
-  },
-
-  /**
-   * Saves the current list of pinned links.
-   */
-  save: function PinnedLinks_save() {
-    Storage.set("pinnedLinks", this.links);
-  },
-
-  /**
-   * Checks whether a given link is pinned.
-   * @params aLink The link to check.
-   * @return whether The link is pinned.
-   */
-  isPinned: function PinnedLinks_isPinned(aLink) {
-    return this._indexOfLink(aLink) != -1;
-  },
-
-  /**
-   * Resets the links cache.
-   */
-  resetCache: function PinnedLinks_resetCache() {
-    this._links = null;
-  },
-
-  /**
-   * Finds the index of a given link in the list of pinned links.
-   * @param aLink The link to find an index for.
-   * @return The link's index.
-   */
-  _indexOfLink: function PinnedLinks_indexOfLink(aLink) {
-    for (let i = 0; i < this.links.length; i++) {
-      let link = this.links[i];
-      if (link && link.url == aLink.url)
-        return i;
-    }
-
-    // The given link is unpinned.
-    return -1;
-  },
-
-  /**
-   * Transforms link into a "history" link
-   * @param aLink The link to change
-   * @return true if link changes, false otherwise
-   */
-  _makeHistoryLink: function PinnedLinks_makeHistoryLink(aLink) {
-    if (!aLink.type || aLink.type == "history") {
-      return false;
-    }
-    aLink.type = "history";
-    // always remove targetedSite
-    delete aLink.targetedSite;
-    return true;
-  },
-
-  /**
-   * Replaces existing link with another link.
-   * @param aUrl The url of existing link
-   * @param aLink The replacement link
-   */
-  replace: function PinnedLinks_replace(aUrl, aLink) {
-    let index = this._indexOfLink({url: aUrl});
-    if (index == -1) {
-      return;
-    }
-    this.links[index] = aLink;
-    this.save();
-  },
-
-};
-
-/**
- * Singleton that keeps track of all blocked links in the grid.
- */
-let BlockedLinks = {
-  /**
-   * A list of objects that are observing blocked link changes.
-   */
-  _observers: [],
-
-  /**
-   * The cached list of blocked links.
-   */
-  _links: null,
-
-  /**
-   * Registers an object that will be notified when the blocked links change.
-   */
-  addObserver: function (aObserver) {
-    this._observers.push(aObserver);
-  },
-
-  /**
-   * The list of blocked links.
-   */
-  get links() {
-    if (!this._links)
-      this._links = Storage.get("blockedLinks", {});
-
-    return this._links;
-  },
-
-  /**
-   * Blocks a given link. Adjusts siteMap accordingly, and notifies listeners.
-   * @param aLink The link to block.
-   */
-  block: function BlockedLinks_block(aLink) {
-    this._callObservers("onLinkBlocked", aLink);
-    this.links[toHash(aLink.url)] = 1;
-    this.save();
-
-    // Make sure we unpin blocked links.
-    PinnedLinks.unpin(aLink);
-    aLink.blockState = true;
-  },
-
-  /**
-   * Unblocks a given link. Adjusts siteMap accordingly, and notifies listeners.
-   * @param aLink The link to unblock.
-   */
-  unblock: function BlockedLinks_unblock(aLink) {
-    if (this.isBlocked(aLink)) {
-      delete this.links[toHash(aLink.url)];
-      this.save();
-      this._callObservers("onLinkUnblocked", aLink);
-    }
-    aLink.blockState = false;
-  },
-
-  /**
-   * Saves the current list of blocked links.
-   */
-  save: function BlockedLinks_save() {
-    Storage.set("blockedLinks", this.links);
-  },
-
-  /**
-   * Returns whether a given link is blocked.
-   * @param aLink The link to check.
-   */
-  isBlocked: function BlockedLinks_isBlocked(aLink) {
-    return (toHash(aLink.url) in this.links);
-  },
-
-  /**
-   * Checks whether the list of blocked links is empty.
-   * @return Whether the list is empty.
-   */
-  isEmpty: function BlockedLinks_isEmpty() {
-    return Object.keys(this.links).length == 0;
-  },
-
-  /**
-   * Resets the links cache.
-   */
-  resetCache: function BlockedLinks_resetCache() {
-    this._links = null;
-  },
-
-  _callObservers(methodName, ...args) {
-    for (let obs of this._observers) {
-      if (typeof(obs[methodName]) == "function") {
-        try {
-          obs[methodName](...args);
-        } catch (err) {
-          Cu.reportError(err);
-        }
-      }
-    }
-  }
-};
 
 /**
  * Singleton that serves as the default link provider for the grid. It queries
@@ -688,8 +259,8 @@ let Links = {
    * A mapping from each provider to an object { sortedLinks, siteMap, linkMap }.
    * sortedLinks is the cached, sorted array of links for the provider.
    * siteMap is a mapping from base domains to URL count associated with the domain.
-   *         The count does not include blocked URLs. siteMap is used to look up a
-   *         user's top sites that can be targeted with a suggested tile.
+   *         siteMap is used to look up a user's top sites that can be targeted
+   *         with a suggested tile.
    * linkMap is a Map from link URLs to link objects.
    */
   _providers: new Map(),
@@ -786,42 +357,26 @@ let Links = {
    * @return The links in the grid.
    */
   getLinks: function Links_getLinks() {
-    let pinnedLinks = Array.slice(PinnedLinks.links);
     let links = this._getMergedProviderLinks();
 
     let sites = new Set();
-    for (let link of pinnedLinks) {
-      if (link)
-        sites.add(RemoteNewTabUtils.extractSite(link.url));
-    }
 
-    // Filter blocked and pinned links and duplicate base domains.
+    // Filter duplicate base domains.
     links = links.filter(function (link) {
       let site = RemoteNewTabUtils.extractSite(link.url);
       if (site == null || sites.has(site))
         return false;
       sites.add(site);
 
-      return !BlockedLinks.isBlocked(link) && !PinnedLinks.isPinned(link);
+      return true;
     });
 
-    // Try to fill the gaps between pinned links.
-    for (let i = 0; i < pinnedLinks.length && links.length; i++)
-      if (!pinnedLinks[i])
-        pinnedLinks[i] = links.shift();
-
-    // Append the remaining links if any.
-    if (links.length)
-      pinnedLinks = pinnedLinks.concat(links);
-
-    for (let link of pinnedLinks) {
+    for (let link of links) {
       if (link) {
         link.baseDomain = RemoteNewTabUtils.extractSite(link.url);
-        link.pinState = PinnedLinks.isPinned(link);
-        link.blockState = BlockedLinks.isBlocked(link);
       }
     }
-    return pinnedLinks;
+    return links;
   },
 
   /**
@@ -854,19 +409,11 @@ let Links = {
   },
 
   _incrementSiteMap: function(map, link) {
-    if (RemoteNewTabUtils.blockedLinks.isBlocked(link)) {
-      // Don't count blocked URLs.
-      return;
-    }
     let site = RemoteNewTabUtils.extractSite(link.url);
     map.set(site, (map.get(site) || 0) + 1);
   },
 
   _decrementSiteMap: function(map, link) {
-    if (RemoteNewTabUtils.blockedLinks.isBlocked(link)) {
-      // Blocked URLs are not included in map.
-      return;
-    }
     let site = RemoteNewTabUtils.extractSite(link.url);
     let previousURLCount = map.get(site);
     if (previousURLCount === 1) {
@@ -897,14 +444,6 @@ let Links = {
       }
     }
     this._callObservers("onLinkChanged", aLink);
-  },
-
-  onLinkBlocked: function(aLink) {
-    this._adjustSiteMapAndNotify(aLink, false);
-  },
-
-  onLinkUnblocked: function(aLink) {
-    this._adjustSiteMapAndNotify(aLink);
   },
 
   populateProviderCache: function(provider, callback) {
@@ -968,10 +507,6 @@ let Links = {
     // Build a list containing a copy of each provider's sortedLinks list.
     let linkLists = [];
     for (let provider of this._providers.keys()) {
-      if (!AllPages.enhanced && provider != PlacesProvider) {
-        // Only show history tiles if we're not in 'enhanced' mode.
-        continue;
-      }
       let links = this._providers.get(provider);
       if (links && links.sortedLinks) {
         linkLists.push(links.sortedLinks.slice());
@@ -1129,47 +664,6 @@ let Links = {
 Links.compareLinks = Links.compareLinks.bind(Links);
 
 /**
- * Singleton used to collect telemetry data.
- *
- */
-let Telemetry = {
-  /**
-   * Initializes object.
-   */
-  init: function Telemetry_init() {
-    Services.obs.addObserver(this, TOPIC_GATHER_TELEMETRY, false);
-  },
-
-  /**
-   * Collects data.
-   */
-  _collect: function Telemetry_collect() {
-    let probes = [
-      { histogram: "NEWTAB_PAGE_ENABLED",
-        value: AllPages.enabled },
-      { histogram: "NEWTAB_PAGE_ENHANCED",
-        value: AllPages.enhanced },
-      { histogram: "NEWTAB_PAGE_PINNED_SITES_COUNT",
-        value: PinnedLinks.links.length },
-      { histogram: "NEWTAB_PAGE_BLOCKED_SITES_COUNT",
-        value: Object.keys(BlockedLinks.links).length }
-    ];
-
-    probes.forEach(function Telemetry_collect_forEach(aProbe) {
-      Services.telemetry.getHistogramById(aProbe.histogram)
-        .add(aProbe.value);
-    });
-  },
-
-  /**
-   * Listens for gather telemetry topic.
-   */
-  observe: function Telemetry_observe(aSubject, aTopic, aData) {
-    this._collect();
-  }
-};
-
-/**
  * Singleton that checks if a given link should be displayed on about:newtab
  * or if we should rather not do it for security reasons. URIs that inherit
  * their caller's principal will be filtered.
@@ -1208,11 +702,6 @@ let ExpirationFilter = {
 
   filterForThumbnailExpiration:
   function ExpirationFilter_filterForThumbnailExpiration(aCallback) {
-    if (!AllPages.enabled) {
-      aCallback([]);
-      return;
-    }
-
     Links.populateCache(function () {
       let urls = [];
 
@@ -1257,7 +746,6 @@ this.RemoteNewTabUtils = {
     if (this.initWithoutProviders()) {
       PlacesProvider.init();
       Links.addProvider(PlacesProvider);
-      BlockedLinks.addObserver(Links);
     }
   },
 
@@ -1265,7 +753,6 @@ this.RemoteNewTabUtils = {
     if (!this._initialized) {
       this._initialized = true;
       ExpirationFilter.init();
-      Telemetry.init();
       return true;
     }
     return false;
@@ -1291,34 +778,7 @@ this.RemoteNewTabUtils = {
     return this.isTopSiteGivenProvider(aSite, PlacesProvider);
   },
 
-  /**
-   * Restores all sites that have been removed from the grid.
-   */
-  restore: function RemoteNewTabUtils_restore() {
-    Storage.clear();
-    Links.resetCache();
-    PinnedLinks.resetCache();
-    BlockedLinks.resetCache();
-
-    Links.populateCache(function () {}, true);
-  },
-
-  /**
-   * Undoes all sites that have been removed from the grid and keep the pinned
-   * tabs.
-   * @param aCallback the callback method.
-   */
-  undoAll: function RemoteNewTabUtils_undoAll(aCallback) {
-    Storage.remove("blockedLinks");
-    Links.resetCache();
-    BlockedLinks.resetCache();
-    Links.populateCache(aCallback, true);
-  },
-
   links: Links,
-  allPages: AllPages,
   linkChecker: LinkChecker,
-  pinnedLinks: PinnedLinks,
-  blockedLinks: BlockedLinks,
   placesProvider: PlacesProvider
 };

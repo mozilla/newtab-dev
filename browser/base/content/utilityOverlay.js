@@ -12,9 +12,6 @@ Components.utils.import("resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabURL",
   "resource:///modules/NewTabURL.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
-  "resource:///modules/RemoteNewTabLocation.jsm");
-
 this.__defineGetter__("BROWSER_NEW_TAB_URL", () => {
   if (PrivateBrowsingUtils.isWindowPrivate(window) &&
       !PrivateBrowsingUtils.permanentPrivateBrowsing &&
