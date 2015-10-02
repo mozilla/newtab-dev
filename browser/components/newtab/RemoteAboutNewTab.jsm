@@ -43,7 +43,6 @@ let RemoteAboutNewTab = {
     this.pageListener = new RemotePages("about:remote-newtab");
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
-    this.pageListener.addMessageListener("NewTab:ReplacePinLink", this.replacePinLink.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
         this.captureBackgroundPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
@@ -64,7 +63,6 @@ let RemoteAboutNewTab = {
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
-        pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
         enhancedLinks: this.getEnhancedLinks(),
       });
     });
@@ -89,35 +87,8 @@ let RemoteAboutNewTab = {
   updateGrid: function(message) {
     message.target.sendAsyncMessage("NewTab:UpdateLinks", {
       links: RemoteNewTabUtils.links.getLinks(),
-      pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
       enhancedLinks: this.getEnhancedLinks(),
     });
-  },
-
-  /**
-   * Replaces the old pinned link if it has expired with a new link.
-   *
-   * @param {Object} message
-   *        A RemotePageManager message with the following data:
-   *
-   *        oldURL (String):
-   *          The old URL to be removed.
-   *        link (Object):
-   *          A link object that contains:
-   *
-   *          baseDomain (String)
-   *          blockState (Boolean)
-   *          frecency (Integer)
-   *          lastVisiteDate (Integer)
-   *          pinState (Boolean)
-   *          title (String)
-   *          type (String)
-   *          url (String)
-   */
-  replacePinLink: function(message) {
-    let oldUrl = message.data.oldUrl;
-    let link = message.data.link;
-    RemoteNewTabUtils.pinnedLinks.replace(oldUrl, link);
   },
 
   /**
@@ -216,18 +187,11 @@ let RemoteAboutNewTab = {
   observe: function(aSubject, aTopic, aData) { // jshint ignore:line
     let extraData;
     let refreshPage = false;
-    if (aTopic === "nsPref:changed") {
-      switch (aData) {
-        case "browser.newtabpage.pinned":
-          RemoteNewTabUtils.pinnedLinks.resetCache();
-          break;
-      }
-    } else if (aTopic === "browser:purge-session-history") {
+    if (aTopic === "browser:purge-session-history") {
       RemoteNewTabUtils.links.resetCache();
       RemoteNewTabUtils.links.populateCache(() => {
         this.pageListener.sendAsyncMessage("NewTab:UpdateLinks", {
           links: RemoteNewTabUtils.links.getLinks(),
-          pinnedLinks: RemoteNewTabUtils.pinnedLinks.links,
           enhancedLinks: this.getEnhancedLinks(),
         });
       });
@@ -246,7 +210,6 @@ let RemoteAboutNewTab = {
    * Add all observers that about:newtab page must listen for.
    */
   _addObservers: function() {
-    Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
     Services.obs.addObserver(this, "page-thumbnail:create", true);
     Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
@@ -255,7 +218,6 @@ let RemoteAboutNewTab = {
    * Remove all observers on the page.
    */
   _removeObservers: function() {
-    Services.prefs.addObserver("browser.newtabpage.pinned", this, true);
     Services.obs.removeObserver(this, "page-thumbnail:create");
     Services.obs.removeObserver(this, "browser:purge-session-history");
   },
