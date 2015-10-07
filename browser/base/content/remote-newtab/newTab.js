@@ -101,7 +101,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
   function getInitialState() {
     let prefs = Services.prefs;
     let isPrivate = PrivateBrowsingUtils.isContentWindowPrivate(window);
-    let state = {
+    let data = {
       enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
       enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
       rows: prefs.getIntPref("browser.newtabpage.rows"),
@@ -113,7 +113,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
     };
     remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
-      data: state
+      data,
     }, remoteNewTabLocation.origin);
   }
 
