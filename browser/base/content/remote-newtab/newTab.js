@@ -79,6 +79,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
           return;
         }
         let handled = handleCommand(command, obj);
+        // If the commands are not handled within this content frame,
+        // the command will be passed on to main process, in RemoteAboutNewTab.jsm
         if (!handled) {
           sendAsyncMessage(command, obj);
         }
