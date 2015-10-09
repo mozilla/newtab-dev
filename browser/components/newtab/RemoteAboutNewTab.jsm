@@ -229,10 +229,11 @@ let RemoteAboutNewTab = {
   },
 
   /**
-   * Listens for a preference change or session purge for all pages and sends
-   * a message to update the pages that are open. If a session purge occured,
-   * also clear the links cache and update the set of links to display, as they
-   * may have changed, then proceed with the page update.
+   * Listens for a preference change, a session purge for all pages, or if the
+   * current search engine is modified, and sends a message to update the pages
+   * that are open. If a session purge occured, also clear the links cache and
+   * update the set of links to display, as they may have changed, then proceed
+   * with the page update.
    */
   observe: function(aSubject, aTopic, aData) { // jshint ignore:line
     let extraData;
@@ -250,6 +251,13 @@ let RemoteAboutNewTab = {
         let engine = yield SearchProvider.currentEngine;
         this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
           engine, name: "CurrentEngine"
+        });
+      }.bind(this));
+    } else if (aTopic === "nsPref:changed" && aData === "browser.search.hiddenOneOffs") {
+      Task.spawn(function* () {
+        let state = yield SearchProvider.state;
+        this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+          state, name: "CurrentState"
         });
       }.bind(this));
     }
@@ -272,6 +280,8 @@ let RemoteAboutNewTab = {
   _addObservers: function() {
     Services.obs.addObserver(this, "page-thumbnail:create", true);
     Services.obs.addObserver(this, "browser:purge-session-history", true);
+    Services.prefs.addObserver("browser.search.hiddenOneOffs", this, false);
+    Services.obs.addObserver(this, "browser-search-engine-modified", true);
   },
 
   /**
@@ -280,6 +290,8 @@ let RemoteAboutNewTab = {
   _removeObservers: function() {
     Services.obs.removeObserver(this, "page-thumbnail:create");
     Services.obs.removeObserver(this, "browser:purge-session-history");
+    Services.prefs.removeObserver("browser.search.hiddenOneOffs", this);
+    Services.obs.removeObserver(this, "browser-search-engine-modified");
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,

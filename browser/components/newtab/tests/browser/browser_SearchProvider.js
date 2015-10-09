@@ -24,7 +24,7 @@ add_task(function* testState() {
 
     ok(imports.SearchProvider, "Search provider was created");
 
-    // state returns promise when eventually returns a state object
+    // state returns promise and eventually returns a state object
     var state = yield imports.SearchProvider.state;
     var stateProps = hasProp(state);
     ["engines", "currentEngine"].forEach(stateProps);
@@ -72,7 +72,7 @@ add_task(function* testSearch() {
       },
     };
 
-    // adding an entry to the form history will a 'formhistory-add', so we need to wait for
+    // adding an entry to the form history will trigger a 'formhistory-add' notification, so we need to wait for
     // this to resolve before checking that the search string has been added to the suggestions list
     let addHistoryPromise = new Promise((resolve, reject) => {
       Services.obs.addObserver(function onAdd(subject, topic, data) { // jshint ignore:line
@@ -93,6 +93,8 @@ add_task(function* testSearch() {
         var url = tab.selectedTab.linkedBrowser.contentWindow.location.href;
         resolve(url);
       };
+
+      ok(win.gBrowser.tabs[1], "search opened a new tab")
       win.gBrowser.tabs[1].linkedBrowser.addEventListener("pageshow", pageShow);
     });
     is(result, "http://example.com/?q=test", "should match search URL of default engine.");
@@ -112,6 +114,7 @@ add_task(function* testSearch() {
     var {
       formHistory
     } = suggestions;
+    ok(formHistory.length !== 0, "a form history was created");
     is(formHistory[0], searchData.searchString, "the search string has been added to form history");
 
     // remove the entry we just added from the form history and ensure it no longer appears as a suggestion
