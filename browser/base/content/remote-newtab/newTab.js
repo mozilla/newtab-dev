@@ -64,25 +64,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
       }
 
       remoteIFrame.removeEventListener("load", loadHandler);
-      remoteIFrame.contentDocument.addEventListener("NewTabCommand", ({detail}) => {
-        let obj;
-        let { data, command } = detail;
-        if (typeof data !== "string") {
-          console.error("Type error, expected data to be a string.");
-          return;
-        }
-        try {
-          obj = JSON.parse(data);
-        } catch (err) {
-          let msg = `Security error. Message ${command} could not be parsed.`;
-          console.error(msg, err);
-          return;
-        }
-        let handled = handleCommand(command, obj);
-        // If the commands are not handled within this content frame,
-        // the command will be passed on to main process, in RemoteAboutNewTab.jsm
+
+      remoteIFrame.contentDocument.addEventListener("NewTabCommand", (e) => {
+        // If the commands are not handled within this content frame, the command will be
+        // passed on to main process, in RemoteAboutNewTab.jsm
+        let handled = handleCommand(e.detail.command, e.detail.data);
         if (!handled) {
-          sendAsyncMessage(command, obj);
+          sendAsyncMessage(e.detail.command, e.detail.data);
         }
       });
       registerEvent("NewTab:Observe");
@@ -113,7 +101,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
   function getInitialState() {
     let prefs = Services.prefs;
     let isPrivate = PrivateBrowsingUtils.isContentWindowPrivate(window);
-    let data = {
+    let state = {
       enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
       enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
       rows: prefs.getIntPref("browser.newtabpage.rows"),
@@ -125,7 +113,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
     };
     remoteIFrame.contentWindow.postMessage({
       name: "NewTab:State",
-      data,
+      data: state
     }, remoteNewTabLocation.origin);
   }
 
