@@ -4,7 +4,7 @@
 /*globals Services, XPCOMUtils, Task, SearchProvider, RemoteNewTabUtils, BackgroundPageThumbs,
   RemotePages, PageThumbs, RemoteDirectoryLinksProvider, RemoteNewTabLocation*/
 
- /* exported RemoteAboutNewTab */
+/* exported RemoteAboutNewTab */
 
 "use strict";
 
@@ -46,7 +46,7 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
-        this.captureBackgroundPageThumb.bind(this));
+      this.captureBackgroundPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:Search", this.search.bind(this));
     this.pageListener.addMessageListener("NewTab:GetState", this.getState.bind(this));
@@ -237,7 +237,6 @@ let RemoteAboutNewTab = {
    */
   observe: function(aSubject, aTopic, aData) { // jshint ignore:line
     let extraData;
-    let refreshPage = false;
     if (aTopic === "browser:purge-session-history") {
       RemoteNewTabUtils.links.resetCache();
       RemoteNewTabUtils.links.populateCache(() => {
@@ -248,17 +247,25 @@ let RemoteAboutNewTab = {
       });
     } else if (aTopic === "browser-search-engine-modified" && aData === "engine-current") {
       Task.spawn(function* () {
-        let engine = yield SearchProvider.currentEngine;
-        this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
-          engine, name: "CurrentEngine"
-        });
+        try {
+          let engine = yield SearchProvider.currentEngine;
+          this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+            engine, name: "CurrentEngine"
+          });
+        } catch (e) {
+          Cu.reportError(e);
+        }
       }.bind(this));
     } else if (aTopic === "nsPref:changed" && aData === "browser.search.hiddenOneOffs") {
       Task.spawn(function* () {
-        let state = yield SearchProvider.state;
-        this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
-          state, name: "CurrentState"
-        });
+        try {
+          let state = yield SearchProvider.state;
+          this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+            state, name: "CurrentState"
+          });
+        } catch (e) {
+          Cu.reportError(e);
+        }
       }.bind(this));
     }
 
