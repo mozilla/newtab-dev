@@ -261,21 +261,25 @@ this.SearchProvider = {
     if (!dataURL) {
       return Promise.resolve(null);
     }
-    return new Promise((resolve) => {
-      let fileReader = Cc["@mozilla.org/files/filereader;1"]
-        .createInstance(Ci.nsIDOMFileReader);
-      let [type, data] = dataURLParts.exec(dataURL).slice(1);
-      let bytes = atob(data);
-      let uInt8Array = new Uint8Array(bytes.length);
-      for (let i = 0; i < bytes.length; ++i) {
-        uInt8Array[i] = bytes.charCodeAt(i);
+    return new Promise((resolve, reject) => {
+      try {
+        let fileReader = Cc["@mozilla.org/files/filereader;1"]
+          .createInstance(Ci.nsIDOMFileReader);
+        let [type, data] = dataURLParts.exec(dataURL).slice(1);
+        let bytes = atob(data);
+        let uInt8Array = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; ++i) {
+          uInt8Array[i] = bytes.charCodeAt(i);
+        }
+        let blob = new Blob([uInt8Array], {
+          type
+        });
+        fileReader.onload = () => resolve(fileReader.result);
+        fileReader.onerror = () => resolve(null);
+        fileReader.readAsArrayBuffer(blob);
+      } catch (e) {
+        reject(e);
       }
-      let blob = new Blob([uInt8Array], {
-        type
-      });
-      fileReader.onload = () => resolve(fileReader.result);
-      fileReader.onerror = () => resolve(null);
-      fileReader.readAsArrayBuffer(blob);
     });
   },
 
