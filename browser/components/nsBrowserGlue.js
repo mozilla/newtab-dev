@@ -35,6 +35,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabUtils",
                                   "resource:///modules/RemoteNewTabUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
+                                  "resource:///modules/NewTabPrefsProvider.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "UITour",
                                   "resource:///modules/UITour.jsm");
 
@@ -848,6 +851,7 @@ BrowserGlue.prototype = {
     RemoteNewTabUtils.init();
     RemoteNewTabUtils.links.addProvider(RemoteDirectoryLinksProvider);
     RemoteAboutNewTab.init();
+    NewTabPrefsProvider.prefs.startTracking();
 
     DirectoryLinksProvider.init();
     NewTabUtils.init();
