@@ -16,14 +16,12 @@ function run_test() {
 
 add_task(function* test_observe() {
   Services.prefs.setBoolPref("browser.newtabpage.enabled", false);
-  NewTabPrefsProvider.prefs.startTracking()
+  NewTabPrefsProvider.prefs.startTracking();
   let promise = new Promise(resolve => {
-    NewTabPrefsProvider.prefs.on("browser.newtabpage.enabled", data => {
-      resolve(data);
-    });
+    NewTabPrefsProvider.prefs.once("browser.newtabpage.enabled", resolve);
   });
   Services.prefs.setBoolPref("browser.newtabpage.enabled", true);
   let data = yield promise;
   ok(data, "pref emitter triggers");
-  NewTabPrefsProvider.prefs.stopTracking()
+  NewTabPrefsProvider.prefs.stopTracking();
 });
