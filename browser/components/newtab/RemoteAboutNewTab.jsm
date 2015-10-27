@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* globals Services, XPCOMUtils, RemotePages, SearchProvider, RemoteNewTabLocation, RemoteNewTabUtils, Task  */
 /* globals BackgroundPageThumbs, PageThumbs, DirectoryLinksProvider, PlacesProvider, NewTabPrefsProvider */
+/* globals BackgroundPageThumbs, PageThumbs, DirectoryLinksProvider, PlacesProvider */
 /* exported RemoteAboutNewTab */
 
 "use strict";
@@ -159,14 +160,17 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  initializeGrid: function(message) {
+  initializeGrid: Task.async(function*(message) {
+    let placesLinks = yield PlacesProvider.links.getLinks();
+
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
         enhancedLinks: this.getEnhancedLinks(),
+        placesLinks
       });
     });
-  },
+  }),
 
   /**
    * Inits the content iframe with the newtab location
