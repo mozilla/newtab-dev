@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* globals Services, XPCOMUtils, RemotePages, SearchProvider, RemoteNewTabLocation, RemoteNewTabUtils, Task  */
-/* globals BackgroundPageThumbs, PageThumbs, DirectoryLinksProvider */
+/* globals BackgroundPageThumbs, PageThumbs, DirectoryLinksProvider, PlacesProvider */
 
 /* exported RemoteAboutNewTab */
 
@@ -33,6 +33,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
   "resource:///modules/RemoteNewTabLocation.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SearchProvider",
   "resource:///modules/SearchProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesProvider",
+  "resource:///modules/PlacesProvider.jsm");
 
 let RemoteAboutNewTab = {
 
@@ -102,6 +104,34 @@ let RemoteAboutNewTab = {
   },
 
   /**
+   * Notifies when history is cleared
+   */
+  placesClearHistory: function() {
+    this.pageListener.sendAsyncMessage("NewTab:PlacesClearHistory");
+  },
+
+  /**
+   * Notifies when a link has changed
+   */
+  placesLinkChanged: function(link) {
+    this.pageListener.sendAsyncMessage("NewTab:PlacesLinkChanged", link);
+  },
+
+  /**
+   * Notifies when many links have changed
+   */
+  placesManyLinksChanged: function() {
+    this.pageListener.sendAsyncMessage("NewTab:PlacesManyLinksChanged");
+  },
+
+  /**
+   * Notifies when one URL has been deleted
+   */
+  placesDeleteURI: function(data) {
+    this.pageListener.sendAsyncMessage("NewTab:PlacesDeleteURI", data);
+  },
+
+  /**
    * Initializes the grid for the first time when the page loads.
    * Fetch all the links and send them down to the child to populate
    * the grid with.
@@ -109,14 +139,17 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  initializeGrid: function(message) {
+  initializeGrid: Task.async(function*(message) {
+    let placesLinks = yield PlacesProvider.links.getLinks();
+
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
         enhancedLinks: this.getEnhancedLinks(),
+        placesLinks
       });
     });
-  },
+  }),
 
   /**
    * Inits the content iframe with the newtab location
@@ -289,6 +322,10 @@ let RemoteAboutNewTab = {
     Services.obs.addObserver(this, "browser:purge-session-history", true);
     Services.prefs.addObserver("browser.search.hiddenOneOffs", this, false);
     Services.obs.addObserver(this, "browser-search-engine-modified", true);
+    PlacesProvider.links.on("deleteURI", this.placesDeleteURI.bind(this));
+    PlacesProvider.links.on("clearHistory", this.placesClearHistory.bind(this));
+    PlacesProvider.links.on("linkChanged", this.placesLinkChanged.bind(this));
+    PlacesProvider.links.on("manyLinksChanged", this.placesManyLinksChanged.bind(this));
   },
 
   /**
@@ -299,6 +336,10 @@ let RemoteAboutNewTab = {
     Services.obs.removeObserver(this, "browser:purge-session-history");
     Services.prefs.removeObserver("browser.search.hiddenOneOffs", this);
     Services.obs.removeObserver(this, "browser-search-engine-modified");
+    PlacesProvider.links.off("deleteURI", this.placesDeleteURI);
+    PlacesProvider.links.off("clearHistory", this.placesClearHistory);
+    PlacesProvider.links.off("linkChanged", this.placesLinkChanged);
+    PlacesProvider.links.off("manyLinksChanged", this.placesManyLinksChanged);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
