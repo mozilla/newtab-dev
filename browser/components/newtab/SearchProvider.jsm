@@ -1,4 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+ /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 /*globals Components, Services, XPCOMUtils, Task, SearchSuggestionController, PrivateBrowsingUtils, FormHistory*/
@@ -167,24 +167,29 @@ this.SearchProvider = {
       controller.remoteTimeout = data.remoteTimeout || undefined;
       let isPrivate = PrivateBrowsingUtils.isBrowserPrivate(browser);
 
-      // fetch() rejects its promise if there's a pending request, but since we
-      // process our event queue serially, there's never a pending request.
-      let suggestions = yield controller.fetch(data.searchString, isPrivate, engine);
-
-      if (!suggestions) {
-        throw new Error("There are no suggestions");
+      let suggestions;
+      try {
+        // If fetch() rejects due to it's asynchronous behaviour, the suggestions
+        // is null and is then handled.
+        suggestions = yield controller.fetch(data.searchString, isPrivate, engine);
+      } catch (e) {
+        Cu.reportError(e);
       }
 
-      this._suggestionMap.get(browser)
-        .previousFormHistoryResult = suggestions.formHistoryResult;
+      let result = null;
+      if (suggestions) {
+        this._suggestionMap.get(browser)
+          .previousFormHistoryResult = suggestions.formHistoryResult;
 
-      let suggestion = {
-        engineName: data.engineName,
-        searchString: suggestions.term,
-        formHistory: suggestions.local,
-        remote: suggestions.remote,
-      };
-      return suggestion;
+        result = {
+          engineName: data.engineName,
+          searchString: suggestions.term,
+          formHistory: suggestions.local,
+          remote: suggestions.remote,
+        };
+    }
+
+    return result;
     }.bind(this));
   },
 

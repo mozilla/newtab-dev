@@ -94,7 +94,7 @@ add_task(function* testSearch() {
         resolve(url);
       };
 
-      ok(win.gBrowser.tabs[1], "search opened a new tab")
+      ok(win.gBrowser.tabs[1], "search opened a new tab");
       win.gBrowser.tabs[1].linkedBrowser.addEventListener("pageshow", pageShow);
     });
     is(result, "http://example.com/?q=test", "should match search URL of default engine.");
@@ -133,5 +133,35 @@ add_task(function* testSearch() {
     yield removeHistoryPromise;
     suggestions = yield imports.SearchProvider.getSuggestions(gBrowser, suggestionData);
     ok(suggestions.formHistory.length === 0, "entry has been removed from form history");
+  });
+});
+
+add_task(function* testFetchFailure() {
+  yield BrowserTestUtils.withNewTab({
+    gBrowser,
+    url: "about:newTab",
+  }, function* () {
+
+    // ensure that the fetch failure is handled when the suggestions return a null value due to their
+    // asynchronous nature
+    let { controller } = imports.SearchProvider._suggestionDataForBrowser(gBrowser);
+    let oldFetch = controller.fetch;
+    controller.fetch = function(searchTerm, privateMode, engine) { //jshint ignore:line
+      let promise = new Promise((resolve, reject) => { //jshint ignore:line
+        reject();
+      });
+      return promise;
+    };
+
+    // this should throw, since the promise rejected
+    let suggestionData = {
+      engineName: Services.search.currentEngine.name,
+      searchString: "test",
+    };
+
+    let suggestions = yield imports.SearchProvider.getSuggestions(gBrowser, suggestionData);
+
+    ok(suggestions === null, "suggestions returned null and the function handled the rejection");
+    controller.fetch = oldFetch;
   });
 });

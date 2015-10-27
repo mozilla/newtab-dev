@@ -81,11 +81,19 @@ let RemoteAboutNewTab = {
   },
 
   getSuggestions: Task.async(function* (message) {
-    let suggestion = yield SearchProvider.getSuggestions(message.target.browser, message.data);
-    message.target.sendAsyncMessage("NewTab:ContentSearchService", {
-      suggestion,
-      name: "Suggestions",
-    });
+    try {
+      let suggestion = yield SearchProvider.getSuggestions(message.target.browser, message.data);
+
+      // In the case where there is no suggestion available, do not send a message.
+      if (suggestion !== null) {
+        message.target.sendAsyncMessage("NewTab:ContentSearchService", {
+          suggestion,
+          name: "Suggestions",
+        });
+      }
+    } catch(e) {
+      Cu.reportError(e);
+    }
   }),
 
   removeFormHistoryEntry: function(message) {
