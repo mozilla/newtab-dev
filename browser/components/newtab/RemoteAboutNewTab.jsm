@@ -297,17 +297,25 @@ let RemoteAboutNewTab = {
           Cu.reportError(e);
         }
       }.bind(this));
-    } else if (aTopic === "nsPref:changed" && aData === "browser.search.hiddenOneOffs") {
-      Task.spawn(function* () {
-        try {
-          let state = yield SearchProvider.state;
-          this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
-            state, name: "CurrentState"
-          });
-        } catch (e) {
-          Cu.reportError(e);
-        }
-      }.bind(this));
+    } else if (aTopic === "nsPref:changed") {
+      if (aData === "browser.search.hiddenOneOffs") {
+        Task.spawn(function* () {
+          try {
+            let state = yield SearchProvider.state;
+            this.pageListener.sendAsyncMessage("NewTab:ContentSearchService", {
+              state, name: "CurrentState"
+            });
+          } catch (e) {
+            Cu.reportError(e);
+          }
+        }.bind(this));
+      }
+      else if (aData === "browser.newtabpage.remotelocation") {
+        let newLocation = Services.prefs.getPrefType("browser.newtabpage.remotelocation") ?
+                          Services.prefs.getCharPref("browser.newtabpage.remotelocation") :
+                          null;
+        RemoteNewTabLocation.override(newLocation);
+      }
     }
 
     if (extraData !== undefined || aTopic === "page-thumbnail:create") {
@@ -329,6 +337,7 @@ let RemoteAboutNewTab = {
     Services.obs.addObserver(this, "page-thumbnail:create", true);
     Services.obs.addObserver(this, "browser:purge-session-history", true);
     Services.prefs.addObserver("browser.search.hiddenOneOffs", this, false);
+    Services.prefs.addObserver("browser.newtabpage.remotelocation", this, false);
     Services.obs.addObserver(this, "browser-search-engine-modified", true);
     PlacesProvider.links.on("deleteURI", this.placesDeleteURI.bind(this));
     PlacesProvider.links.on("clearHistory", this.placesClearHistory.bind(this));
@@ -343,6 +352,7 @@ let RemoteAboutNewTab = {
     Services.obs.removeObserver(this, "page-thumbnail:create");
     Services.obs.removeObserver(this, "browser:purge-session-history");
     Services.prefs.removeObserver("browser.search.hiddenOneOffs", this);
+    Services.prefs.removeObserver("browser.newtabpage.remotelocation", this);
     Services.obs.removeObserver(this, "browser-search-engine-modified");
     PlacesProvider.links.off("deleteURI", this.placesDeleteURI);
     PlacesProvider.links.off("clearHistory", this.placesClearHistory);
