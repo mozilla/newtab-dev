@@ -46,6 +46,7 @@ let RemoteAboutNewTab = {
   init: function() {
     this.pageListener = new RemotePages("about:remote-newtab");
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
+    this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
       this.captureBackgroundPageThumb.bind(this));
@@ -60,6 +61,15 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTabFrame:GetInit", this.initContentFrame.bind(this));
 
     this._addObservers();
+  },
+
+  customize: function(message) {
+    if (message.data.enabled !== undefined) {
+      Services.prefs.setBoolPref("browser.newtabpage.enabled", message.data.enabled);
+    }
+    if (message.data.enhanced !== undefined) {
+      Services.prefs.setBoolPref("browser.newtabpage.enhanced", message.data.enhanced);
+    }
   },
 
   search: function(message) {
