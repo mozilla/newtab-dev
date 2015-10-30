@@ -44,12 +44,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
       registerEvent(data.type);
       break;
     case "NewTab:GetInitialState":
-      getInitialState();
-      break;
+      data = {};
+      data.windowID = window.QueryInterface(Ci.nsIInterfaceRequestor)
+        .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+      data.privateBrowsingMode = PrivateBrowsingUtils.isContentWindowPrivate(window);
+      // Fallthrough - more handling required.
     default:
       commandHandled = false;
     }
-    return commandHandled;
+    return {commandHandled, data};
   }
 
   function initRemotePage(initData) {
@@ -68,9 +71,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
       remoteIFrame.contentDocument.addEventListener("NewTabCommand", (e) => {
         // If the commands are not handled within this content frame, the command will be
         // passed on to main process, in RemoteAboutNewTab.jsm
-        let handled = handleCommand(e.detail.command, e.detail.data);
+        let {handled, data} = handleCommand(e.detail.command, e.detail.data);
         if (!handled) {
-          sendAsyncMessage(e.detail.command, e.detail.data);
+          sendAsyncMessage(e.detail.command, data);
         }
       });
       registerEvent("NewTab:Observe");
@@ -93,28 +96,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
     addMessageListener(eventName, (message) => {
       remoteIFrame.contentWindow.postMessage(message, remoteNewTabLocation.origin);
     });
-  }
-
-  /**
-   * Sends the initial data payload to a content IFrame so it can bootstrap
-   */
-  function getInitialState() {
-    let prefs = Services.prefs;
-    let isPrivate = PrivateBrowsingUtils.isContentWindowPrivate(window);
-    let state = {
-      enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
-      enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
-      rows: prefs.getIntPref("browser.newtabpage.rows"),
-      columns: prefs.getIntPref("browser.newtabpage.columns"),
-      introShown: prefs.getBoolPref("browser.newtabpage.introShown"),
-      windowID: window.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils).outerWindowID,
-      privateBrowsingMode: isPrivate
-    };
-    remoteIFrame.contentWindow.postMessage({
-      name: "NewTab:State",
-      data: state
-    }, remoteNewTabLocation.origin);
   }
 
   addMessageListener("NewTabFrame:Init", function loadHandler(message) {

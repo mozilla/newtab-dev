@@ -58,6 +58,7 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:ManageEngines", this.manageEngines.bind(this));
     this.pageListener.addMessageListener("NewTab:SetCurrentEngine", this.setCurrentEngine.bind(this));
     this.pageListener.addMessageListener("NewTabFrame:GetInit", this.initContentFrame.bind(this));
+    this.pageListener.addMessageListener("NewTab:GetInitialState", this.getInitialState.bind(this));
 
     this._addObservers();
   },
@@ -139,17 +140,14 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  initializeGrid: Task.async(function*(message) {
-    let placesLinks = yield PlacesProvider.links.getLinks();
-
+  initializeGrid(message) {
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
         enhancedLinks: this.getEnhancedLinks(),
-        placesLinks
       });
     });
-  }),
+  },
 
   /**
    * Inits the content iframe with the newtab location
@@ -160,6 +158,25 @@ let RemoteAboutNewTab = {
       origin: RemoteNewTabLocation.origin
     });
   },
+
+  /**
+   * Sends the initial data payload to a content IFrame so it can bootstrap
+   */
+  getInitialState: Task.async(function* (message) {
+    let placesLinks = yield PlacesProvider.links.getLinks();
+    let prefs = Services.prefs;
+    let state = {
+      enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
+      enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
+      rows: prefs.getIntPref("browser.newtabpage.rows"),
+      columns: prefs.getIntPref("browser.newtabpage.columns"),
+      introShown: prefs.getBoolPref("browser.newtabpage.introShown"),
+      windowID: message.data.windowID,
+      privateBrowsingMode: message.data.privateBrowsingMode,
+      placesLinks
+    };
+    message.target.sendAsyncMessage("NewTab:State", state);
+  }),
 
   /**
    * Updates the grid by getting a new set of links.
