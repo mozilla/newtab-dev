@@ -1,8 +1,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* globals Services, XPCOMUtils, RemotePages, SearchProvider, RemoteNewTabLocation, RemoteNewTabUtils, Task  */
-/* globals BackgroundPageThumbs, PageThumbs, DirectoryLinksProvider, PlacesProvider */
+/*globals Services, XPCOMUtils, Task, SearchProvider, RemoteNewTabUtils, BackgroundPageThumbs,
+  RemotePages, PageThumbs, RemoteDirectoryLinksProvider, RemoteNewTabLocation, PlacesProvider, NewTabPrefsProvider*/
 
 /* exported RemoteAboutNewTab */
 
@@ -27,14 +27,16 @@ XPCOMUtils.defineLazyModuleGetter(this, "BackgroundPageThumbs",
   "resource://gre/modules/BackgroundPageThumbs.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DirectoryLinksProvider",
-  "resource:///modules/DirectoryLinksProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RemoteDirectoryLinksProvider",
+  "resource:///modules/RemoteDirectoryLinksProvider.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RemoteNewTabLocation",
   "resource:///modules/RemoteNewTabLocation.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SearchProvider",
   "resource:///modules/SearchProvider.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesProvider",
   "resource:///modules/PlacesProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
+  "resource:///modules/NewTabPrefsProvider.jsm");
 
 let RemoteAboutNewTab = {
 
@@ -47,6 +49,7 @@ let RemoteAboutNewTab = {
     this.pageListener = new RemotePages("about:remote-newtab");
     this.pageListener.addMessageListener("NewTab:InitializeGrid", this.initializeGrid.bind(this));
     this.pageListener.addMessageListener("NewTab:UpdateGrid", this.updateGrid.bind(this));
+    this.pageListener.addMessageListener("NewTab:Customize", this.customize.bind(this));
     this.pageListener.addMessageListener("NewTab:CaptureBackgroundPageThumbs",
       this.captureBackgroundPageThumb.bind(this));
     this.pageListener.addMessageListener("NewTab:PageThumbs", this.createPageThumb.bind(this));
@@ -58,9 +61,17 @@ let RemoteAboutNewTab = {
     this.pageListener.addMessageListener("NewTab:ManageEngines", this.manageEngines.bind(this));
     this.pageListener.addMessageListener("NewTab:SetCurrentEngine", this.setCurrentEngine.bind(this));
     this.pageListener.addMessageListener("NewTabFrame:GetInit", this.initContentFrame.bind(this));
-    this.pageListener.addMessageListener("NewTab:GetInitialState", this.getInitialState.bind(this));
 
     this._addObservers();
+  },
+
+  customize: function(message) {
+    if (message.data.enabled !== undefined) {
+      Services.prefs.setBoolPref("browser.newtabpage.enabled", message.data.enabled);
+    }
+    if (message.data.enhanced !== undefined) {
+      Services.prefs.setBoolPref("browser.newtabpage.enhanced", message.data.enhanced);
+    }
   },
 
   search: function(message) {
@@ -84,11 +95,19 @@ let RemoteAboutNewTab = {
   },
 
   getSuggestions: Task.async(function* (message) {
-    let suggestion = yield SearchProvider.getSuggestions(message.target.browser, message.data);
-    message.target.sendAsyncMessage("NewTab:ContentSearchService", {
-      suggestion,
-      name: "Suggestions",
-    });
+    try {
+      let suggestion = yield SearchProvider.getSuggestions(message.target.browser, message.data);
+
+      // In the case where there is no suggestion available, do not send a message.
+      if (suggestion !== null) {
+        message.target.sendAsyncMessage("NewTab:ContentSearchService", {
+          suggestion,
+          name: "Suggestions",
+        });
+      }
+    } catch(e) {
+      Cu.reportError(e);
+    }
   }),
 
   removeFormHistoryEntry: function(message) {
@@ -140,14 +159,17 @@ let RemoteAboutNewTab = {
    * @param {Object} message
    *        A RemotePageManager message.
    */
-  initializeGrid(message) {
+  initializeGrid: Task.async(function*(message) {
+    let placesLinks = yield PlacesProvider.links.getLinks();
+
     RemoteNewTabUtils.links.populateCache(() => {
       message.target.sendAsyncMessage("NewTab:InitializeLinks", {
         links: RemoteNewTabUtils.links.getLinks(),
         enhancedLinks: this.getEnhancedLinks(),
+        placesLinks
       });
     });
-  },
+  }),
 
   /**
    * Inits the content iframe with the newtab location
@@ -158,25 +180,6 @@ let RemoteAboutNewTab = {
       origin: RemoteNewTabLocation.origin
     });
   },
-
-  /**
-   * Sends the initial data payload to a content IFrame so it can bootstrap
-   */
-  getInitialState: Task.async(function* (message) {
-    let placesLinks = yield PlacesProvider.links.getLinks();
-    let prefs = Services.prefs;
-    let state = {
-      enabled: prefs.getBoolPref("browser.newtabpage.enabled"),
-      enhanced: prefs.getBoolPref("browser.newtabpage.enhanced"),
-      rows: prefs.getIntPref("browser.newtabpage.rows"),
-      columns: prefs.getIntPref("browser.newtabpage.columns"),
-      introShown: prefs.getBoolPref("browser.newtabpage.introShown"),
-      windowID: message.data.windowID,
-      privateBrowsingMode: message.data.privateBrowsingMode,
-      placesLinks
-    };
-    message.target.sendAsyncMessage("NewTab:State", state);
-  }),
 
   /**
    * Updates the grid by getting a new set of links.
@@ -272,7 +275,7 @@ let RemoteAboutNewTab = {
     let enhancedLinks = [];
     for (let link of RemoteNewTabUtils.links.getLinks()) {
       if (link) {
-        enhancedLinks.push(DirectoryLinksProvider.getEnhancedLink(link));
+        enhancedLinks.push(RemoteDirectoryLinksProvider.getEnhancedLink(link));
       }
     }
     return enhancedLinks;
@@ -331,6 +334,14 @@ let RemoteAboutNewTab = {
     }
   },
 
+  setEnabled: function(name, data) {
+    this.pageListener.sendAsyncMessage("NewTab:setEnabled", data.enabled);
+  },
+
+  setEnhanced: function(name, data) {
+    this.pageListener.sendAsyncMessage("NewTab:setEnhanced", data.enhanced);
+  },
+
   /**
    * Add all observers that about:newtab page must listen for.
    */
@@ -343,6 +354,8 @@ let RemoteAboutNewTab = {
     PlacesProvider.links.on("clearHistory", this.placesClearHistory.bind(this));
     PlacesProvider.links.on("linkChanged", this.placesLinkChanged.bind(this));
     PlacesProvider.links.on("manyLinksChanged", this.placesManyLinksChanged.bind(this));
+    NewTabPrefsProvider.prefs.on("setEnabled", this.setEnabled.bind(this));
+    NewTabPrefsProvider.prefs.on("setEnhanced", this.setEnhanced.bind(this));
   },
 
   /**
@@ -357,6 +370,8 @@ let RemoteAboutNewTab = {
     PlacesProvider.links.off("clearHistory", this.placesClearHistory);
     PlacesProvider.links.off("linkChanged", this.placesLinkChanged);
     PlacesProvider.links.off("manyLinksChanged", this.placesManyLinksChanged);
+    NewTabPrefsProvider.prefs.off("setEnabled", this.setEnabled.bind(this));
+    NewTabPrefsProvider.prefs.off("setEnhanced", this.setEnhanced.bind(this));
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
