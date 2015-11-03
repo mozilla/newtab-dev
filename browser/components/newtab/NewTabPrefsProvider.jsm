@@ -31,7 +31,24 @@ PrefsProvider.prototype = {
   observe(subject, topic, data) { // jshint ignore:line
     if (topic === "nsPref:changed") {
       if (prefsSet.has(data)) {
-        this.emit(data);
+        switch (data) {
+          case "browser.newtabpage.enabled":
+            this.emit("setEnabled", {
+              enabled: Services.prefs.getBoolPref(data),
+            });
+            break;
+          case "browser.newtabpage.enhanced":
+            this.emit("setEnhanced", {
+              enhanced: Services.prefs.getBoolPref(data),
+            });
+            break;
+          case "browser.newtabpage.pinned":
+            this.emit("setPinned");
+            break;
+          default:
+            this.emit(data);
+            break;
+        }
       }
     } else {
       Cu.reportError(new Error("NewTabPrefsProvider observing unknown topic"));

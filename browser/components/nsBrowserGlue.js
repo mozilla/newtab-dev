@@ -1173,6 +1173,7 @@ BrowserGlue.prototype = {
     WebappManager.uninit();
 
     RemoteAboutNewTab.uninit();
+    NewTabPrefsProvider.prefs.stopTracking();
     AboutNewTab.uninit();
 #ifdef NIGHTLY_BUILD
     if (Services.prefs.getBoolPref("dom.identity.enabled")) {
