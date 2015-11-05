@@ -1,7 +1,6 @@
 "use strict";
 
-/* global XPCOMUtils */
-/* global ok */
+/* global XPCOMUtils, ok, equal, Services, NewTabPrefsProvider */
 
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -18,10 +17,13 @@ add_task(function* test_observe() {
   Services.prefs.setBoolPref("browser.newtabpage.enabled", false);
   NewTabPrefsProvider.prefs.startTracking();
   let promise = new Promise(resolve => {
-    NewTabPrefsProvider.prefs.once("browser.newtabpage.enabled", resolve);
+    NewTabPrefsProvider.prefs.once("browser.newtabpage.enabled", function(name, data) {
+      equal(data, Services.prefs.getBoolPref(data), "emitter collected correct pref data");
+    });
+    resolve(true);
   });
   Services.prefs.setBoolPref("browser.newtabpage.enabled", true);
-  let data = yield promise;
-  ok(data, "pref emitter triggers");
+  let result = yield promise;
+  ok(result, "pref emitter triggers");
   NewTabPrefsProvider.prefs.stopTracking();
 });
