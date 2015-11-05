@@ -6,6 +6,8 @@
 this.EXPORTED_SYMBOLS = ["NewTabPrefsProvider"];
 
 const Cu = Components.utils;
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -31,7 +33,19 @@ PrefsProvider.prototype = {
   observe(subject, topic, data) { // jshint ignore:line
     if (topic === "nsPref:changed") {
       if (prefsSet.has(data)) {
-        this.emit(data);
+        switch (data) {
+          case "browser.newtabpage.enabled":
+          case "browser.newtabpage.enhanced":
+            this.emit(data, Services.prefs.getBoolPref(data));
+            break;
+          case "browser.newtabpage.pinned":
+            let string = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
+            this.emit(data, Services.prefs.getComplexValue(data, Ci.nsISupportsString, string).data);
+            break;
+          default:
+            this.emit(data);
+            break;
+        }
       }
     } else {
       Cu.reportError(new Error("NewTabPrefsProvider observing unknown topic"));
