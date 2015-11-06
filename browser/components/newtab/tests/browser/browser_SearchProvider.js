@@ -85,19 +85,21 @@ add_task(function* testSearch() {
       }, "satchel-storage-changed", false);
     });
 
-    var win = yield imports.SearchProvider.performSearch(gBrowser, searchData);
-    var result = yield new Promise(resolve => {
+    let win = yield imports.SearchProvider.performSearch(gBrowser, searchData);
+    let tab = yield new Promise(resolve => {
       const pageShow = function() {
-        win.gBrowser.tabs[1].linkedBrowser.removeEventListener("pageshow", pageShow);
-        var tab = win.gBrowser.tabContainer.tabbrowser;
-        var url = tab.selectedTab.linkedBrowser.contentWindow.location.href;
-        BrowserTestUtils.removeTab(tab.selectedTab).then(()=> {resolve(url)});
+        let tab = win.gBrowser.tabs[1];
+        tab.linkedBrowser.removeEventListener("pageshow", pageShow);
+        resolve(tab);
       };
 
       ok(win.gBrowser.tabs[1], "search opened a new tab");
       win.gBrowser.tabs[1].linkedBrowser.addEventListener("pageshow", pageShow);
     });
-    is(result, "http://example.com/?q=test", "should match search URL of default engine.");
+
+    let url = tab.linkedBrowser.contentWindow.location.href;
+    is(url, "http://example.com/?q=test", "should match search URL of default engine.");
+    yield BrowserTestUtils.removeTab(tab);
 
     // suggestions has correct properties
     var suggestionData = {
