@@ -42,7 +42,8 @@ add_task(function* testState() {
     var {
       currentEngine
     } = state;
-    is(currentEngine.name, Services.search.currentEngine.name, "Current engine has been correctly set to default engine");
+    is(currentEngine.name, Services.search.currentEngine.name,
+        "Current engine has been correctly set to default engine");
 
     // current engine should properties
     var engineProps = hasProp(currentEngine);
@@ -146,7 +147,7 @@ add_task(function* testFetchFailure() {
 
     // ensure that the fetch failure is handled when the suggestions return a null value due to their
     // asynchronous nature
-    let { controller } = imports.SearchProvider._suggestionDataForBrowser(gBrowser);
+    let {controller} = imports.SearchProvider._suggestionDataForBrowser(gBrowser);
     let oldFetch = controller.fetch;
     controller.fetch = function(searchTerm, privateMode, engine) { //jshint ignore:line
       let promise = new Promise((resolve, reject) => { //jshint ignore:line

@@ -50,6 +50,7 @@ this.SearchProvider = {
 
   /**
    * Makes a copy of the current search suggestions.
+   *
    * @return {Object} Key/value pairs representing the search suggestions.
    */
   get searchSuggestionUIStrings() {
@@ -61,6 +62,7 @@ this.SearchProvider = {
 
   /**
    * Gets the state
+   *
    * @return {Promise} Resolves to an object:
    *      engines {Object[]}:  list of engines.
    *      currentEngine {Object}: the current engine.
@@ -89,6 +91,7 @@ this.SearchProvider = {
 
   /**
    * Get a browser to peform a search by opening a new window.
+   *
    * @param  {XULBrowser} browser The browser that performs the search.
    * @param  {Object} data The data used to perform the search.
    * @return {Window} win The window that is performing the search.
@@ -130,6 +133,7 @@ this.SearchProvider = {
 
   /**
    * Returns the current search engine.
+   *
    * @return {Object} An object the describes the current engine.
    */
   get currentEngine() {
@@ -187,9 +191,8 @@ this.SearchProvider = {
           formHistory: suggestions.local,
           remote: suggestions.remote,
         };
-    }
-
-    return result;
+      }
+      return result;
     }.bind(this));
   },
 
