@@ -56,7 +56,7 @@ add_task(function* testSearch() {
   yield BrowserTestUtils.withNewTab({
     gBrowser,
     url: "about:newTab",
-  }, function* (aBrowser) {
+  }, function* () {
 
     // perform a search
     var searchData = {
@@ -86,10 +86,14 @@ add_task(function* testSearch() {
       }, "satchel-storage-changed", false);
     });
 
-    yield imports.SearchProvider.performSearch(aBrowser, searchData);
-    yield BrowserTestUtils.waitForEvent(aBrowser, "pageshow");
-    let url = aBrowser.contentWindow.location.href;
-    is(url, "http://example.com/?q=test", "should match search URL of default engine.");
+    // create promise before causing loadURI to prevent possible race conditions
+    let browserLoadedPromise = BrowserTestUtils.browserLoaded(gBrowser.selectedBrowser);
+    yield imports.SearchProvider.performSearch(gBrowser, searchData);
+    yield browserLoadedPromise;
+    // just check if the browser has loaded. we can't really introspect because
+    // the browser has had a remoteness switch, from main process to content process
+    is(gBrowser.selectedBrowser.contentWindow.location.href,
+        "http://example.com/?q=test", "should match search URL of default engine.");
 
     // suggestions has correct properties
     var suggestionData = {
