@@ -590,6 +590,7 @@ WEBIDL_FILES = [
     'WebGL2RenderingContext.webidl',
     'WebGLRenderingContext.webidl',
     'WebSocket.webidl',
+    'Whatever.webidl',
     'WheelEvent.webidl',
     'WifiOptions.webidl',
     'WindowRoot.webidl',

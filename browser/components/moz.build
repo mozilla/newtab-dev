@@ -25,6 +25,7 @@ DIRS += [
     'tabview',
     'uitour',
     'translation',
+    'Whatever',
 ]
 
 DIRS += ['build']

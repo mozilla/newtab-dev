@@ -1,0 +1,4 @@
+EXTRA_COMPONENTS += [
+    'Whatever.js',
+    'Whatever.manifest',
+]
