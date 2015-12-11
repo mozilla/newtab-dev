@@ -1,0 +1,23 @@
+component {bdd78376-e211-409a-be04-1ad3c11cb469} MozNewTab.js
+contract @mozilla.org/MozNewTab;1 {bdd78376-e211-409a-be04-1ad3c11cb469}
+
+component {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca} MozNewTabPrefProvider.js
+contract @mozilla.org/MozNewTabPrefProvider;1 {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca}
+
+component {2d3ff5cd-6eae-44a3-bebf-ff49615fb684} MozPreferencesMap.js
+contract @mozilla.org/MozPreferencesMap;1 {2d3ff5cd-6eae-44a3-bebf-ff49615fb684}
+
+component {4f33efd5-f87d-4420-bec9-a411ce297973} MozContentSearch.js
+contract @mozilla.org/MozContentSearch;1 {4f33efd5-f87d-4420-bec9-a411ce297973}
+
+component {d664953c-1733-45df-aceb-ec4436fe9c49} MozSearchEngineDetails.js
+contract @mozilla.org/MozSearchEngineDetails;1 {d664953c-1733-45df-aceb-ec4436fe9c49}
+
+component {f5feac3f-82e2-4ed0-bf04-6e757b5a7dfc} MozSearchUIStrings.js
+contract @mozilla.org/MozSearchUIStrings;1 {f5feac3f-82e2-4ed0-bf04-6e757b5a7dfc}
+
+component {d6c87e53-270e-4285-b407-542b3b46824e} MozSearchIcon.js
+contract @mozilla.org/MozSearchIcon;1 {d6c87e53-270e-4285-b407-542b3b46824e}
+
+component {797fa325-b133-4ade-bf65-f60fba409a36} MozSearchIcon.js
+contract @mozilla.org/MozEngineChangeEvent;1 {797fa325-b133-4ade-bf65-f60fba409a36}

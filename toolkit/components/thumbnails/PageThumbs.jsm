@@ -510,6 +510,25 @@ this.PageThumbs = {
 this.PageThumbsStorage = {
   // The path for the storage
   _path: null,
+
+  getPathAsync(){
+    if (this._path) {
+dump(`
+========================> ALREADY HAVE IT!!! ${this._path}
+  `);
+      return Promise.resolve(this._path);
+    }
+    return PageThumbsWorker.post("getLocalProfileDir")
+      .then( path => {
+        dump(`
+========================>
+========================>          ${path} GOT IT!!!
+========================>
+`);
+        this._path = path;
+      });
+  },
+
   get path() {
     if (!this._path) {
       this._path = OS.Path.join(OS.Constants.Path.localProfileDir, THUMBNAIL_DIRECTORY);
@@ -523,12 +542,12 @@ this.PageThumbsStorage = {
     // thread, which serializes its operations, this ensures that
     // future operations can proceed without having to check whether
     // the directory exists.
-    return PageThumbsWorker.post("makeDir",
-      [this.path, {ignoreExisting: true}]).then(
-        null,
-        function onError(aReason) {
-          Components.utils.reportError("Could not create thumbnails directory" + aReason);
-        });
+    return this.getPathAsync()
+      .then(
+        () => PageThumbsWorker.post("makeDir",[this._path, {ignoreExisting: true}])
+      ).catch(
+        aReason => Cu.reportError("Could not create thumbnails directory" + aReason)
+      );
   },
 
   getLeafNameForURL: function Storage_getLeafNameForURL(aURL) {

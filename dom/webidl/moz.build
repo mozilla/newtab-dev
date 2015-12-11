@@ -327,6 +327,7 @@ WEBIDL_FILES = [
     'MozMobileConnectionInfo.webidl',
     'MozMobileMessageManager.webidl',
     'MozMobileNetworkInfo.webidl',
+    'MozNewTab.webidl',
     'MozPowerManager.webidl',
     'MozSelfSupport.webidl',
     'MozTetheringManager.webidl',

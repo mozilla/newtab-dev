@@ -14,7 +14,7 @@
 /*globals Task, ManifestObtainer, ManifestFinder, content, sendAsyncMessage, addMessageListener, Components*/
 "use strict";
 const {
-  utils: Cu,
+  utils: Cu
 } = Components;
 Cu.import("resource://gre/modules/ManifestObtainer.jsm");
 Cu.import("resource://gre/modules/ManifestFinder.jsm");

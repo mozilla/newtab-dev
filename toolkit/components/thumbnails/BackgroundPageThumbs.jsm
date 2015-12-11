@@ -1,7 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/*global XPCOMUtils, PageThumbs, Services, Task, PageThumbsStorage */
+/*exported EXPORTED_SYMBOLS*/
+"use strict";
 const EXPORTED_SYMBOLS = [
   "BackgroundPageThumbs",
 ];
@@ -56,10 +58,24 @@ const BackgroundPageThumbs = {
    *                 the queue and started.  Defaults to 30000 (30 seconds).
    */
   capture: function (url, options={}) {
+    let promise;
+    // If we have a callback, wrap it.
+    if(options.hasOwnProperty(options, "onDone")){
+      promise = new Promise((resolve) => {
+        let done = options.onDone;
+        options.onDone = (url) => {
+          resolve(url);
+          promise.then(done);
+        };
+      });
+    // Otherwise, resolve the promise when done.
+    } else {
+      promise = new Promise((resolve)=>{
+        options.onDone = resolve;
+      });
+    }
     if (!PageThumbs._prefEnabled()) {
-      if (options.onDone)
-        schedule(() => options.onDone(url));
-      return;
+      return schedule(() => options.onDone(url));
     }
     this._captureQueue = this._captureQueue || [];
     this._capturesByURL = this._capturesByURL || new Map();
@@ -68,17 +84,17 @@ const BackgroundPageThumbs = {
 
     // We want to avoid duplicate captures for the same URL.  If there is an
     // existing one, we just add the callback to that one and we are done.
-    let existing = this._capturesByURL.get(url);
+    let existing = this._capturesByURL.get(url)
     if (existing) {
-      if (options.onDone)
-        existing.doneCallbacks.push(options.onDone);
       // The queue is already being processed, so nothing else to do...
-      return;
+      existing.doneCallbacks.push(options.onDone);
+    } else{
+      let cap = new Capture(url, this._onCaptureOrTimeout.bind(this), options);
+      this._captureQueue.push(cap);
+      this._capturesByURL.set(url, cap);
+      this._processCaptureQueue();
     }
-    let cap = new Capture(url, this._onCaptureOrTimeout.bind(this), options);
-    this._captureQueue.push(cap);
-    this._capturesByURL.set(url, cap);
-    this._processCaptureQueue();
+    return promise;
   },
 
   /**
@@ -94,7 +110,13 @@ const BackgroundPageThumbs = {
     // The fileExistsForURL call is an optimization, potentially but unlikely
     // incorrect, and no big deal when it is.  After the capture is done, we
     // atomically test whether the file exists before writing it.
-    let exists = yield PageThumbsStorage.fileExistsForURL(url);
+    let exists;
+    try{
+      yield PageThumbsStorage.ensurePath();
+      exists = yield PageThumbsStorage.fileExistsForURL(url);
+    } catch(err) {
+      throw err;
+    }
     if (exists) {
       if(options.onDone){
         options.onDone(url);

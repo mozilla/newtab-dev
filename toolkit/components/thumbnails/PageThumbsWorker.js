@@ -33,6 +33,10 @@ self.addEventListener("message", msg => worker.handleMessage(msg));
 
 
 var Agent = {
+  // Allows async-getting of the user's local profile dir from content code.
+  getLocalProfileDir(){
+    return OS.Constants.Path.localProfileDir;
+  },
   // Checks if the specified file exists and has an age less than as
   // specifed (in seconds).
   isFileRecent: function Agent_isFileRecent(path, maxAge) {
