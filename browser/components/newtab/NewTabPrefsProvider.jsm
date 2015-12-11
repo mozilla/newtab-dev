@@ -9,66 +9,74 @@ const {interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
 XPCOMUtils.defineLazyGetter(this, "EventEmitter", function() {
   const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
   return EventEmitter;
 });
 
 // Supported prefs and data type
-const gPrefsMap = new Map([
+const prefsMap = new Map([
+  ["browser.newtabpage.rows", "int"],
+  ["browser.newtabpage.columns", "int"],
   ["browser.newtabpage.enabled", "bool"],
   ["browser.newtabpage.enhanced", "bool"],
-  ["browser.newtabpage.pinned", "str"],
+  ["browser.newtabpage.pinned", "bool"],
+  ["browser.newtabpage.remote", "bool"],
   ["intl.locale.matchOS", "bool"],
   ["general.useragent.locale", "localized"],
 ]);
 
-let PrefsProvider = function PrefsProvider() {
+function PrefsProvider() {
   EventEmitter.decorate(this);
-};
+}
 
 PrefsProvider.prototype = {
 
   observe(subject, topic, data) { // jshint ignore:line
-    if (topic === "nsPref:changed") {
-      if (gPrefsMap.has(data)) {
-        switch (gPrefsMap.get(data)) {
-          case "bool":
-            this.emit(data, Preferences.get(data, false));
-            break;
-          case "str":
-            this.emit(data, Preferences.get(data, ""));
-            break;
-          case "localized":
-            try {
-              this.emit(data, Preferences.get(data, "", Ci.nsIPrefLocalizedString));
-            } catch (e) {
-              this.emit(data, Preferences.get(data, ""));
-            }
-            break;
-          default:
-            this.emit(data);
-            break;
-        }
-      }
-    } else {
-      Cu.reportError(new Error("NewTabPrefsProvider observing unknown topic"));
+    if (topic !== "nsPref:changed" || !prefsMap.has(data)) {
+      let msg = `Observing unknown topic or preference: ${topic} / {data}`;
+      let error = new Error(msg);
+      return Cu.reportError(error);
     }
+    let type = prefsMap.get(data);
+    let prefName = data;
+    let value;
+    switch (type) {
+    case "bool":
+      value = Preferences.get(prefName, false);
+      break;
+    case "str":
+      value = Preferences.get(prefName, "");
+      break;
+    case "int":
+      value = Preferences.get(prefName, 0);
+      break;
+    case "localized":
+      try {
+        value = Preferences.get(prefName, "", Ci.nsIPrefLocalizedString);
+      } catch (e) {
+        value = Preferences.get(prefName, "");
+      }
+      break;
+    }
+    this.emit(data, value);
   },
 
-  get prefsMap() {
-    return gPrefsMap;
+  currentPrefs(){
+    return Array
+      .from(prefsMap.keys())
+      .map(key => [key, Preferences.get(key)])
+      .reduce((map, [key, value]) => map.set(key, value), new Map());
   },
 
   init() {
-    for (let pref of gPrefsMap.keys()) {
+    for (let pref of prefsMap.keys()) {
       Services.prefs.addObserver(pref, this, false);
     }
   },
 
   uninit() {
-    for (let pref of gPrefsMap.keys()) {
+    for (let pref of prefsMap.keys()) {
       Services.prefs.removeObserver(pref, this, false);
     }
   }
@@ -77,8 +85,6 @@ PrefsProvider.prototype = {
 /**
  * Singleton that serves as the default new tab pref provider for the grid.
  */
-const gPrefs = new PrefsProvider();
-
-let NewTabPrefsProvider = {
-  prefs: gPrefs,
+this.NewTabPrefsProvider = {
+  prefs: new PrefsProvider(),
 };

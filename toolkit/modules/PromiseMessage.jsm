@@ -25,6 +25,9 @@ var PromiseMessage = {
     // Return a promise that resolves when we get a reply (a message of the same name).
     return new Promise(resolve => {
       messageManager.addMessageListener(name, function listener(reply) {
+        dump(`
+          _________________
+          YaY!!!!! GOT reply.data.id: ${reply.data.id}`)
         if (reply.data.id !== id) {
           return;
         }

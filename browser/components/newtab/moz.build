@@ -19,3 +19,15 @@ EXTRA_JS_MODULES += [
     'RemoteNewTabUtils.jsm',
     'SearchProvider.jsm',
 ]
+
+EXTRA_COMPONENTS += [
+    'MozContentSearch.js',
+    'MozEngineChangeEvent.js',
+    'MozNewTab.js',
+    'MozNewTab.manifest',
+    'MozNewTabPrefProvider.js',
+    'MozPreferencesMap.js',
+    'MozSearchEngineDetails.js',
+    'MozSearchIcon.js',
+    'MozSearchUIStrings.js',
+]
