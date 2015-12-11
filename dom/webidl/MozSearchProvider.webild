@@ -1,0 +1,63 @@
+
+partial interface Navigator {
+  readonly attribute MozSearchProvider mozSearch;
+};
+
+[JSImplementation="@mozilla.org/mozsearchprovider;1"]
+interface MozSearchProvider {
+  // static readonly attribute maplike<DOMString, DOMString> UIStrings;
+  // [NewObject] readonly attribute Promise<SearchEngineDetails> currentEngine;
+  // Promise<sequence<SearchEngineDetails>> getAllEngines();
+  // Promise<Boolean> performSearch(SearchEngineQuery);
+  // Promise<MozSearchSuggestion> getSuggestions(SearchEngineQuery query);
+  // Promise<Boolean> addFormHistoryEntry(DOMString entry);
+  // Promise<Boolean> removeFormHistoryEntry(DOMString entry);
+};
+
+// [NoInterfaceObject, [JSImplementation="@mozilla.org/mozsearchprovider;1"]
+// interface MozSearchSuggestion {
+//   readonly attribute DOMString engineName;
+//   readonly attribute searchString
+//   formHistory
+//   remote
+// };
+
+// dictionary SearchEngineQuery {
+//   DOMString name;
+//   DOMString searchString;
+//   DOMString searchPurpose;
+//   SearchEventDescription eventData;
+//   DOMString healthReportKey;
+//   DOMString engineName;
+//   DOMString searchString;
+//   DOMString formHistory;
+//   DOMString remote;
+//   DOMString remoteTimeout;
+// };
+
+// dictionary SearchEventDescription{
+//   DOMString shiftKey;
+//   DOMString ctrlKey;
+//   DOMString metaKey;
+//   DOMString altKey;
+//   DOMString button;
+//   Foo selection;
+// };
+
+// dictionary SelectionDescription {
+//   long index;
+//   SearchSelectionKind kind;
+// }
+
+// enum SearchSelectionKind {
+//   "mouse", "key"
+// };
+
+// dictionary SearchEngineDetails {
+//   DOMString name;
+//   DOMString placeholder;
+//   ArrayBuffer iconBuffer;
+//   ArrayBuffer logoBuffer;
+//   ArrayBuffer logo2xBuffer;
+//   DOMString preconnectOrigin;
+// };
