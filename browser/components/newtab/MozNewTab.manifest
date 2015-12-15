@@ -1,6 +1,9 @@
 component {bdd78376-e211-409a-be04-1ad3c11cb469} MozNewTab.js
 contract @mozilla.org/MozNewTab;1 {bdd78376-e211-409a-be04-1ad3c11cb469}
 
+component {f85c1ae8-8e5e-446a-a2d8-ea54a5173e85} MozNewTabPlacesProvider.js
+contract @mozilla.org/MozNewTabPlacesProvider;1 {f85c1ae8-8e5e-446a-a2d8-ea54a5173e85}
+
 component {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca} MozNewTabPrefProvider.js
 contract @mozilla.org/MozNewTabPrefProvider;1 {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca}
 

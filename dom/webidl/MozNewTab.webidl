@@ -1,15 +1,21 @@
 [NavigatorProperty="mozNewTab", JSImplementation="@mozilla.org/MozNewTab;1"]
 interface MozNewTab {
   readonly attribute MozNewTabPrefProvider prefs;
+  readonly attribute MozNewTabPlacesProvider db;
   readonly attribute MozContentSearch search;
   Promise<Blob> capturePageThumb(DOMString url);
+};
+
+[JSImplementation="@mozilla.org/MozNewTabPlacesProvider;1", ChromeConstructor]
+interface MozNewTabPlacesProvider : EventTarget {
+  sequence<MozFrecentSite> getFrecentSites();
 };
 
 [JSImplementation="@mozilla.org/MozNewTabPrefProvider;1", ChromeConstructor]
 interface MozNewTabPrefProvider : EventTarget {
   attribute EventHandler onprefchange;
   MozPreferencesMap getCurrent();
-  promise update(DOMString name, DOMString value);
+  //Promise update(DOMString name, DOMString value);
 };
 
 [JSImplementation="@mozilla.org/MozPreferencesMap;1", ChromeConstructor]
@@ -106,6 +112,14 @@ dictionary SelectionDescription {
   long index;
   SearchSelectionKind kind;
 };
+
+dictionary MozFrecentSite {
+  DOMString title;
+  DOMString type;
+  DOMString url;
+  long frecency;
+};
+
 
 enum SearchSelectionKind {
   "mouse", "key"
