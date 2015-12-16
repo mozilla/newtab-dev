@@ -24,6 +24,7 @@ ${msg}
 }
 
 function dumpResult(r){
+  dump(`\n ================ DUMPING RESULT ${r} =========\n`);
   for(var i in r){
     out(`${i} -> ${r[i]}`);
   }
@@ -84,6 +85,35 @@ MozContentSearch.prototype = {
         );
     });
   },
+  getVisibleEngines(){
+    const data ={
+      type: "GetVisibleEngines",
+      data: null,
+    };
+
+    function convertToSafeArray(engines){
+      let safeArray = Cu.cloneInto([], this._win);
+      engines.map(
+        engineDetails => new this._win.MozSearchEngineDetails(engineDetails)
+      ).reduce(
+        (collector, next) => {collector.push(next); return collector}, safeArray
+      );
+      return safeArray;
+    }
+
+    out("SENDING MESSAGE: GetVisibleEngines");
+    return new this._win.Promise((resolve, reject)=>{
+      out("...in promise... sending....");
+      PromiseMessage.send(this._mm, "ContentSearch", data)
+        .then(({data: {data: engines}}) => engines)
+        .then(convertToSafeArray.bind(this))
+        .then(resolve)
+        .catch(
+          ({message}) => reject(new this._win.Error(message))
+        );
+
+    });
+  },
   get UIStrings(){
     if(this._UIStrings){
       return this._win.Promise.resolve(this._UIStrings);
@@ -125,7 +155,7 @@ MozContentSearch.prototype = {
     // };
   },
   get currentEngine() {
-    const data ={
+    const data = {
       type: "GetCurrentEngineDetails",
       data: null,
     };
