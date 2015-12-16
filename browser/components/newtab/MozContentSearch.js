@@ -154,7 +154,7 @@ MozContentSearch.prototype = {
     //   data: null,
     // };
   },
-  get currentEngine() {
+  getCurrentEngine() {
     const data = {
       type: "GetCurrentEngineDetails",
       data: null,
