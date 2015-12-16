@@ -148,11 +148,12 @@ MozContentSearch.prototype = {
   removeFormHistoryEntry(entry) {
     return this._modifyFormHistory("RemoveFormHistoryEntry", entry);
   },
-  performSearch() {
-    // const data ={
-    //   type: "GetCurrentEngine",
-    //   data: null,
-    // };
+  performSearch(searchEngineQuery) {
+    const data ={
+      type: "Search",
+      data: searchEngineQuery,
+    };
+    PromiseMessage.send(this._mm, "ContentSearch", data);
   },
   getCurrentEngine() {
     const data = {
