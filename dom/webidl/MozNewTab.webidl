@@ -9,7 +9,7 @@ interface MozNewTab {
 interface MozNewTabPrefProvider : EventTarget {
   attribute EventHandler onprefchange;
   MozPreferencesMap getCurrent();
-  promise update(DOMString name, DOMString value);
+  //promise set(DOMString name, DOMString value);
 };
 
 [JSImplementation="@mozilla.org/MozPreferencesMap;1", ChromeConstructor]
@@ -31,6 +31,7 @@ interface MozContentSearch : EventTarget {
   Promise<boolean> addFormHistoryEntry(DOMString entry);
   Promise<boolean> removeFormHistoryEntry(DOMString entry);
   attribute EventHandler onenginechange;
+  Promise<sequence<MozSearchEngineDetails>> getVisibleEngines();
 };
 
 [JSImplementation="@mozilla.org/MozSearchEngineDetails;1",
