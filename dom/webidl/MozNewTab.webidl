@@ -26,7 +26,7 @@ interface MozSearchUIStrings {
 interface MozContentSearch : EventTarget {
   readonly attribute Promise<MozSearchUIStrings> UIStrings;
   Promise<MozSearchEngineDetails> getCurrentEngine();
-  Promise<boolean> performSearch(optional SearchEngineQuery query);
+  void performSearch(optional SearchEngineQuery query);
   // Promise<sequence<MozSearchSuggestion>> getSuggestions(SearchEngineQuery query);
   Promise<boolean> addFormHistoryEntry(DOMString entry);
   Promise<boolean> removeFormHistoryEntry(DOMString entry);
