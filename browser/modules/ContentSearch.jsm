@@ -73,6 +73,9 @@ const MAX_SUGGESTIONS = 6;
  *   GetStrings
  *     Retrieves localized search UI strings.
  *     data: null
+ *   GetVisibleEngines
+ *      Gets a list of the the current visible engines.
+ *      data: null
  *   ManageEngines
  *     Opens the search engine management window.
  *     data: null
@@ -122,6 +125,9 @@ const MAX_SUGGESTIONS = 6;
  *   FormHistoryEntryRemoved
  *     Sent in reply to RemoveFormHistoryEntry.
  *     data: boolean, indicating that the form entry was removed.
+ *   VisibleEngines
+ *     Sent in reply to GetVisibleEngines.
+ *     data: Array, containing a list a objects with each engine's details.
  */
 
 this.ContentSearch = {
@@ -308,13 +314,23 @@ this.ContentSearch = {
   }),
 
   _onMessageGetState: function (msg) {
-    let state = this._currentStateObj();
+    let state = this._currentStateObj;
     this._reply(msg, "State", state);
   },
 
   _onMessageGetCurrentEngineDetails(msg) {
-    let engine = this._currentEngineObj();
+    let engine = this._currentEngineObj;
     this._reply(msg, "CurrentEngineDetails", engine);
+  },
+
+  _onMessageGetVisibleEngines(msg){
+    dump(`
+
++++++++++++++++++++++++++ GetVisibleEngines MSG!!!*******
+    `);
+    let engines = this._visibleEnginesDetails;
+    dump(`GOT THE FOLLOWING ENGINES !!!! ${engines} ${typeof engines} !!!`);
+    this._reply(msg, "VisibleEngines", engines);
   },
 
   _onMessageGetEngineDetails(msg){
@@ -490,13 +506,13 @@ ${i} => ${msg.data[i]}
 
   _onObserve: Task.async(function* (data) {
     if (data === "engine-current") {
-      let engine = this._currentEngineObj();
+      let engine = this._currentEngineObj;
       this._broadcast("CurrentEngine", engine);
     }
     else if (data !== "engine-default") {
       // engine-default is always sent with engine-current and isn't otherwise
       // relevant to content searches.
-      let state = this._currentStateObj();
+      let state = this._currentStateObj;
       this._broadcast("CurrentState", state);
     }
   }),
@@ -530,8 +546,8 @@ ${i} => ${msg.data[i]}
 
   _msgArgs: function (type, data, msg) {
     let id = null;
-    if(msg){
-      id =  msg.data.id || null;
+    if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
+      id =  msg.data.id;
     }
     dump(`
       ==========
@@ -544,26 +560,24 @@ ${i} => ${msg.data[i]}
     }];
   },
 
-  _currentStateObj: Task.async(function* () {
-    const toArray = function(collector, next){
-      collector.push(next);
-      return collector;
-    };
+  get _currentStateObj(){
     let state = {
-      engines: [],
-      currentEngine: this._currentEngineObj(),
+      engines: this._visibleEnginesDetails,
+      currentEngine: this._currentEngineObj,
     };
+    return state;
+  },
+
+  get _visibleEnginesDetails(){
     let pref = Services.prefs.getCharPref("browser.search.hiddenOneOffs");
     let hiddenList = pref ? pref.split(",") : [];
-    let filteredEngines = Services.search.getVisibleEngines()
-      .filter(engine => hiddenList.includes(engine.name))
+    return Services.search.getVisibleEngines()
+      .filter(engine => !hiddenList.includes(engine.name))
       .map(engine => engine.name)
-      .map(this._getEngineDetailsByName)
-      .reduce(toArray, state.engines);
-    return state;
-  }),
+      .map(this._getEngineDetailsByName, this);
+  },
 
-  _currentEngineObj() {
+  get _currentEngineObj() {
     let name = Services.search.currentEngine.name;
     return this._getEngineDetailsByName(name);
   },
