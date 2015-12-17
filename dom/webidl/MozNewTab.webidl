@@ -9,12 +9,12 @@ interface MozNewTab {
 interface MozNewTabPrefProvider : EventTarget {
   attribute EventHandler onprefchange;
   MozPreferencesMap getCurrent();
-  //promise set(DOMString name, DOMString value);
 };
 
 [JSImplementation="@mozilla.org/MozPreferencesMap;1", ChromeConstructor]
 interface MozPreferencesMap {
   readonly maplike<DOMString, DOMString>;
+  Promise<boolean> update(DOMString name, DOMString value);
 };
 
 [JSImplementation="@mozilla.org/MozSearchUIStrings;1", ChromeConstructor]
@@ -49,6 +49,7 @@ interface MozSearchIcon {
   readonly attribute unsigned long height;
   readonly attribute unsigned long width;
   readonly attribute USVString url;
+  stringifier DOMString toJSON();
 };
 
 // [JSImplementation="@mozilla.org/MozEngineChangeEvent;1",
