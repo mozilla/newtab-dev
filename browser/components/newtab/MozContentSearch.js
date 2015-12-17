@@ -160,26 +160,26 @@ MozContentSearch.prototype = {
       type: "GetCurrentEngineDetails",
       data: null,
     };
+
+    // function convertToSafeObject(engineDetils){
+    //   new this._win.MozSearchEngineDetails(engineDetails)
+    // }
+
     return new this._win.Promise((resolve, reject)=>{
       PromiseMessage.send(this._mm, "ContentSearch", data)
         //extract result
-        .then(
-          ({data: {data: rawEngineDetails}}) => rawEngineDetails
-        )
+        .then(({data: {data: rawEngineDetails}}) => rawEngineDetails)
         .then(dumpResult)
         // .then(
         //   this._storeEngine.bind(this)
         // )
-        .then(
-          mozEngine => resolve(mozEngine)
-        )
-        .catch(
-          error => {
-            out("ERROR HAPPENED");
-            dumpResult(error);
-            reject(new this._win.Error(error.message))
-          }
-        );
+        .then(rawEngineDetails => new this._win.MozSearchEngineDetails(rawEngineDetails))
+        .then(mozEngine => resolve(mozEngine))
+        .catch(error => {
+          out("ERROR HAPPENED");
+          dumpResult(error);
+          reject(new this._win.Error(error.message));
+        });
     });
   },
   _storeEngine(engineDetails){
