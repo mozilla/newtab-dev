@@ -167,14 +167,18 @@ MozContentSearch.prototype = {
           ({data: {data: rawEngineDetails}}) => rawEngineDetails
         )
         .then(dumpResult)
-        .then(
-          this._storeEngine.bind(this)
-        )
+        // .then(
+        //   this._storeEngine.bind(this)
+        // )
         .then(
           mozEngine => resolve(mozEngine)
         )
         .catch(
-          ({message}) => reject(new this._win.Error(message))
+          error => {
+            out("ERROR HAPPENED");
+            dumpResult(error);
+            reject(new this._win.Error(error.message))
+          }
         );
     });
   },
