@@ -40,7 +40,10 @@ MozSearchIcon.prototype = {
     this._width = width;
     this._height = height;
     this._url = new URL(url, this._win.location).href;
-  }
+  },
+  toJSON(){
+    return JSON.stringify({width: this._width, height: this._height, url: this._url});
+  },
 };
 
 var components = [MozSearchIcon];
