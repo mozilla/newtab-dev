@@ -40,7 +40,6 @@ MozNewTabPrefProvider.prototype = {
           return handler;
       };
     }
-    NewTabPrefsProvider.prefs.init();
     const prefNames = ["enabled", "enhanced", "pinned"];
     const dispatcher = this._fireEvent.bind(this);
     prefNames

@@ -5,7 +5,7 @@
 
 this.EXPORTED_SYMBOLS = ["NewTabPrefsProvider"];
 
-const {interfaces: Ci, utils: Cu} = Components;
+const {interfaces: Ci, utils: Cu, classes: Cc} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -20,7 +20,7 @@ const prefsMap = new Map([
   ["browser.newtabpage.columns", "int"],
   ["browser.newtabpage.enabled", "bool"],
   ["browser.newtabpage.enhanced", "bool"],
-  ["browser.newtabpage.pinned", "bool"],
+  ["browser.newtabpage.pinned", "str"],
   ["browser.newtabpage.remote", "bool"],
   ["intl.locale.matchOS", "bool"],
   ["general.useragent.locale", "localized"],
@@ -31,6 +31,21 @@ function PrefsProvider() {
 }
 
 PrefsProvider.prototype = {
+  updatePref(){
+
+  },
+
+  receiveMessage(msg) {
+    dump(`
+++++++++++++++++++++++++++++++++++++++++++++
+      NewTabPrefsProvider GOT MESSAGE! ${msg.data}
+    `);
+    switch(msg.data.action){
+    case "update":
+      updatePref(msg.data);
+      break;
+    }
+  },
 
   observe(subject, topic, data) { // jshint ignore:line
     if (topic !== "nsPref:changed" || !prefsMap.has(data)) {
@@ -70,6 +85,9 @@ PrefsProvider.prototype = {
   },
 
   init() {
+    Cc["@mozilla.org/globalmessagemanager;1"]
+      .getService(Ci.nsIMessageListenerManager)
+      .addMessageListener("NewTabPrefs", this);
     for (let pref of prefsMap.keys()) {
       Services.prefs.addObserver(pref, this, false);
     }
@@ -79,6 +97,9 @@ PrefsProvider.prototype = {
     for (let pref of prefsMap.keys()) {
       Services.prefs.removeObserver(pref, this, false);
     }
+    Cc["@mozilla.org/globalmessagemanager;1"].
+      getService(Ci.nsIMessageListenerManager).
+      removeMessageListener("NewTabPrefs", this);
   }
 };
 

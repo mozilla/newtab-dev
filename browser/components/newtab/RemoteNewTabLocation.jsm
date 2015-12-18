@@ -23,12 +23,12 @@ const PREF_MATCH_OS_LOCALE = "intl.locale.matchOS";
 // The preference that tells what locale the user selected
 const PREF_SELECTED_LOCALE = "general.useragent.locale";
 
-const DEFAULT_PAGE_LOCATION = "https://newtab.cdn.mozilla.net/" +
+const DEFAULT_PAGE_LOCATION = "http://localhost:8000/" +
                               "v%VERSION%/%CHANNEL%/%LOCALE%/index.html";
 
 const VALID_CHANNELS = new Set(["esr", "release", "beta", "aurora", "nightly"]);
 
-const NEWTAB_VERSION = "0";
+const NEWTAB_VERSION = "2";
 
 let RemoteNewTabLocation = {
   /*

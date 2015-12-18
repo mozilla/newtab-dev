@@ -5,8 +5,6 @@
 /*exported NSGetFactory*/
 /*
 GetSuggestions
-RemoveFormHistoryEntry
-Search
 SetCurrentEngine
 SpeculativeConnect
  */
@@ -31,9 +29,9 @@ ${msg}
 `);
 }
 
-function dumpResult(r){
+function dumpResult(r) {
   dump(`\n ================ DUMPING RESULT ${r} =========\n`);
-  for(var i in r){
+  for (var i in r) {
     out(`${i} -> ${r[i]}`);
   }
   return r;
@@ -70,101 +68,110 @@ MozContentSearch.prototype = {
     this._win = contentWindow;
     out("Finished initializing MozContentSearch");
   },
-  _processUIStrings(uiStringsObj){
+
+  _processUIStrings(uiStringsObj) {
     const uiStrings = new this._win.MozSearchUIStrings();
     Object.getOwnPropertyNames(uiStringsObj)
       .map(
         (name) => [String(name), String(uiStringsObj[name])]
       )
       .reduce(
-        (maplike, [name, value]) => maplike.__set(name,value), uiStrings
+        (maplike, [name, value]) => maplike.__set(name, value), uiStrings
       );
     return uiStrings;
   },
-  _modifyFormHistory(type, data) {
+
+  _modifyFormHistory(type, entry) {
+    const data = {
+      type,
+      data: entry,
+    };
     return new this._win.Promise((resolve, reject) => {
-      PromiseMessage.send(this._mm, "ContentSearch", {type, data})
-        .then(
-          // Destructure out the result
-          ({data: {data: result}}) => resolve(result)
-        )
-        .catch(
-          ({message}) => reject(new this._win._Error(message))
-        );
+      Task.spawn(function* () {
+        const result = yield this._send(data);
+        resolve(result);
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win._Error(message))
+      );
     });
   },
-  getVisibleEngines(){
-    const data ={
+
+  getVisibleEngines() {
+    const data = {
       type: "GetVisibleEngines",
       data: null,
     };
-
-    function convertToSafeArray(engines){
-      let safeArray = Cu.cloneInto([], this._win);
-      engines.map(
-        engineDetails => new this._win.MozSearchEngineDetails(engineDetails)
-      ).reduce(
-        (collector, next) => {collector.push(next); return collector;}, safeArray
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function* () {
+        const response = yield this._send(data);
+        const engines = response.map(
+          engineDetails => new this._win.MozSearchEngineDetails(engineDetails)
+        )
+        const safeArray = new this._win.Array();
+        safeArray.push(...engines);
+        resolve(safeArray);
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
       );
-      return safeArray;
-    }
-
-    out("SENDING MESSAGE: GetVisibleEngines");
-    return new this._win.Promise((resolve, reject)=>{
-      out("...in promise... sending....");
-      PromiseMessage.send(this._mm, "ContentSearch", data)
-        .then(({data: {data: engines}}) => engines)
-        .then(convertToSafeArray.bind(this))
-        .then(resolve)
-        .catch(
-          ({message}) => reject(new this._win.Error(message))
-        );
-
     });
   },
-  get UIStrings(){
-    if(this._UIStrings){
+
+  get UIStrings() {
+    if (this._UIStrings) {
       return this._win.Promise.resolve(this._UIStrings);
     }
-    const data ={
+    const data = {
       type: "GetStrings",
       data: null,
     };
-    return new this._win.Promise((resolve, reject)=>{
-      PromiseMessage.send(this._mm, "ContentSearch", data)
-        .then(
-          ({data: {data: UIStrings}}) => UIStrings
-        )
-        .then(
-          this._processUIStrings.bind(this)
-        )
-        .then(
-          uiStrings => this._UIStrings = uiStrings
-        )
-        .then(
-          uiStrings => resolve(uiStrings)
-        )
-        .catch(
-          ({message}) => reject(new this._win.Error(message))
-        );
-
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function* () {
+        const strings = yield this._send(data);
+        this._UIStrings = this._processUIStrings(strings);
+        resolve(this._UIStrings);
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
+      );
     });
   },
+
   addFormHistoryEntry(entry) {
     return this._modifyFormHistory("AddFormHistoryEntry", entry);
   },
+
   removeFormHistoryEntry(entry) {
     return this._modifyFormHistory("RemoveFormHistoryEntry", entry);
   },
+
   performSearch(searchEngineQuery) {
-    const data ={
+    const data = {
       type: "Search",
       data: searchEngineQuery,
     };
-    PromiseMessage.send(this._mm, "ContentSearch", data);
+    this._mm.sendAsyncMessage("ContentSearch", data);
   },
 
-  manageEngines(){
+  getSuggestions(searchSuggestionQuery) {
+    const data = {
+      type: "GetSuggestions",
+      data: searchSuggestionQuery,
+    };
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function* () {
+        out("here we go!")
+        const response = yield this._send(data);
+        out("got responose" + JSON.stringify(response, null, 2));
+        const suggestion = new this._win.MozSearchSuggestion(response);
+        out("constructed suggestion");
+        resolve(suggestion);
+        out("resolved");
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
+      );
+    });
+  },
+
+  manageEngines() {
     const data = {
       type: "ManageEngines",
       data: null,
@@ -177,86 +184,66 @@ MozContentSearch.prototype = {
       type: "GetCurrentEngineDetails",
       data: null,
     };
-
-    // function convertToSafeObject(engineDetils){
-    //   new this._win.MozSearchEngineDetails(engineDetails)
-    // }
-
-    return new this._win.Promise((resolve, reject)=>{
-      PromiseMessage.send(this._mm, "ContentSearch", data)
-        //extract result
-        .then(({data: {data: rawEngineDetails}}) => rawEngineDetails)
-        .then(dumpResult)
-        // .then(
-        //   this._storeEngine.bind(this)
-        // )
-        .then(rawEngineDetails => new this._win.MozSearchEngineDetails(rawEngineDetails))
-        .then(mozEngine => resolve(mozEngine))
-        .catch(error => {
-          out("ERROR HAPPENED");
-          dumpResult(error);
-          reject(new this._win.Error(error.message));
-        });
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function* () {
+        const rawEngineDetails = this._send(data);
+        const mozEngine = new this._win.MozSearchEngineDetails(rawEngineDetails);
+        resolve(mozEngine);
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
+      );
     });
   },
-  _storeEngine(engineDetails){
-    if(!this._engineCache.has(engineDetails.name)){
+
+  _storeEngine(engineDetails) {
+    if (!this._engineCache.has(engineDetails.name)) {
       let engine = new this._win.MozSearchEngineDetails(engineDetails);
       this._engineCache.set(engine.name, engine);
     }
     return this._engineCache.get(engineDetails.name);
   },
+
   handleContentSearch({data: {data}, data: {type}}) {
-    out(`GOT A MESSAGE: ${type}, ${data.name} `);
-    // for (var i in msg.data) {
-    //   out(`msg.data: ${i} ===> ${msg.data[i]}`);
-    // }
-    // for (var i in msg.data.data) {
-    //   out(`msg.data.data: ${i} ===> ${msg.data.data[i]}`);
-    // }
-    switch(type){
+    switch (type) {
       // Default search engine has changed!
-      case "CurrentEngine":
-        this._fireEngineChangeEvent(data.name);
-        break;
-      case "Strings":
-        this._UIStrings = this._processUIStrings(data);
-        break;
+    case "CurrentEngine":
+      this._fireEngineChangeEvent(data.name);
+      break;
+    case "Strings":
+      this._UIStrings = this._processUIStrings(data);
+      break;
     }
   },
+
   get onenginechange() {
     return this.__DOM_IMPL__.getEventHandler("onenginechange");
   },
+
   set onenginechange(handler) {
     this.__DOM_IMPL__.setEventHandler("onenginechange", handler);
   },
+
   _fireEngineChangeEvent(name) {
-    out("Trying fire engine change dispatchEvent", name);
     const data = {
       type: "GetEngineDetails",
       data: name,
     };
-    PromiseMessage.send(this._mm, "ContentSearch", data)
-      .then(x => {out("got to here here:" + x); return x;})
-      .then(
-        dumpResult
-      )
-      .then(
-        ({data: {data: rawEngineDetails}}) => rawEngineDetails
-      )
-      .then((rawEngineDetails)=>{
-        out("got back... content search" + rawEngineDetails);
-        if(!rawEngineDetails){
-          out("but it was empty?" + rawEngineDetails);
-          return;
-        }
-        const engine = this._storeEngine(rawEngineDetails);
-        const eventDetail = Cu.cloneInto({detail: {}}, this._win);
-        eventDetail.detail.engine = engine;
-        const event = new this._win.CustomEvent("enginechange", eventDetail);
-        out("=>>>>>>>>>>>>> fire the event!!!!!!!");
-        this.__DOM_IMPL__.dispatchEvent(event);
-      }).catch(err => out(err));
+    Task.spawn(function* () {
+      const rawEngineDetails = yield this._send(data);
+      const engine = this._storeEngine(rawEngineDetails);
+      const eventInit = {
+        engine
+      };
+      const event = new this._win.MozSearchEngineChangeEvent("enginechange", eventInit);
+      this.__DOM_IMPL__.dispatchEvent(event);
+    }.bind(this));
+  },
+
+  _send(data) {
+    return Task.spawn(function* () {
+      const reply = yield PromiseMessage.send(this._mm, "ContentSearch", data);
+      return reply.data.data;
+    }.bind(this));
   },
 
   __init() {}

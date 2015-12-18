@@ -19,5 +19,5 @@ contract @mozilla.org/MozSearchUIStrings;1 {f5feac3f-82e2-4ed0-bf04-6e757b5a7dfc
 component {d6c87e53-270e-4285-b407-542b3b46824e} MozSearchIcon.js
 contract @mozilla.org/MozSearchIcon;1 {d6c87e53-270e-4285-b407-542b3b46824e}
 
-component {797fa325-b133-4ade-bf65-f60fba409a36} MozSearchIcon.js
-contract @mozilla.org/MozEngineChangeEvent;1 {797fa325-b133-4ade-bf65-f60fba409a36}
+component {7754952b-50d3-4734-a4e5-934e41b1f435} MozSearchSuggestion.js
+contract @mozilla.org/MozSearchSuggestion;1 {7754952b-50d3-4734-a4e5-934e41b1f435}
