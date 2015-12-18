@@ -186,7 +186,7 @@ MozContentSearch.prototype = {
     };
     return new this._win.Promise((resolve, reject) => {
       Task.spawn(function* () {
-        const rawEngineDetails = this._send(data);
+        const rawEngineDetails = yield this._send(data);
         const mozEngine = new this._win.MozSearchEngineDetails(rawEngineDetails);
         resolve(mozEngine);
       }.bind(this)).catch(
