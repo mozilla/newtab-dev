@@ -105,7 +105,7 @@ MozContentSearch.prototype = {
       Task.spawn(function* () {
         const response = yield this._send(data);
         const engines = response.map(
-          engineDetails => new this._win.MozSearchEngineDetails(engineDetails)
+          engineDetails => this._storeEngine(engineDetails)
         )
         const safeArray = new this._win.Array();
         safeArray.push(...engines);
@@ -187,7 +187,7 @@ MozContentSearch.prototype = {
     return new this._win.Promise((resolve, reject) => {
       Task.spawn(function* () {
         const rawEngineDetails = yield this._send(data);
-        const mozEngine = new this._win.MozSearchEngineDetails(rawEngineDetails);
+        const mozEngine = this._storeEngine(rawEngineDetails);
         resolve(mozEngine);
       }.bind(this)).catch(
         ({message}) => reject(new this._win.Error(message))
@@ -197,10 +197,10 @@ MozContentSearch.prototype = {
 
   _storeEngine(engineDetails) {
     if (!this._engineCache.has(engineDetails.name)) {
-      let engine = new this._win.MozSearchEngineDetails(engineDetails);
-      this._engineCache.set(engine.name, engine);
+      this._engineCache.set(engineDetails.name, engineDetails);
     }
-    return this._engineCache.get(engineDetails.name);
+    const engine = this._engineCache.get(engineDetails.name);
+    return new this._win.MozSearchEngineDetails(engine);
   },
 
   handleContentSearch({data: {data}, data: {type}}) {
