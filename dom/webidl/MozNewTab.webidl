@@ -24,6 +24,7 @@ interface MozSearchUIStrings {
 
 [JSImplementation="@mozilla.org/MozContentSearch;1", ChromeConstructor]
 interface MozContentSearch : EventTarget {
+  void manageEngines();
   readonly attribute Promise<MozSearchUIStrings> UIStrings;
   Promise<MozSearchEngineDetails> getCurrentEngine();
   void performSearch(optional SearchEngineQuery query);
