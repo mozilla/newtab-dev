@@ -27,8 +27,8 @@ interface MozContentSearch : EventTarget {
   void manageEngines();
   readonly attribute Promise<MozSearchUIStrings> UIStrings;
   Promise<MozSearchEngineDetails> getCurrentEngine();
-  void performSearch(optional SearchEngineQuery query);
-  // Promise<sequence<MozSearchSuggestion>> getSuggestions(SearchEngineQuery query);
+  void performSearch(SearchEngineQuery query);
+  Promise<sequence<MozSearchSuggestion>> getSuggestions(SearchSuggestionQuery query);
   Promise<boolean> addFormHistoryEntry(DOMString entry);
   Promise<boolean> removeFormHistoryEntry(DOMString entry);
   attribute EventHandler onenginechange;
@@ -53,16 +53,6 @@ interface MozSearchIcon {
   stringifier DOMString toJSON();
 };
 
-// [JSImplementation="@mozilla.org/MozEngineChangeEvent;1",
-// Constructor(DOMString type, optional EngineChangeEventInit eventInitDict)]
-// interface MozEngineChangeEvent : Event {
-//   readonly attribute MozSearchEngineDetails engine;
-// };
-
-// dictionary EngineChangeEventInit : EventInit {
-//   MozSearchEngineDetails engine;
-// };
-
 dictionary SearchEngineDetails {
   DOMString name;
   DOMString placeholder;
@@ -70,27 +60,32 @@ dictionary SearchEngineDetails {
 };
 
 dictionary SearchIcon {
-  unsigned long height;
-  unsigned long width;
-  USVString url;
+  unsigned long height = 0;
+  unsigned long width = 0;
+  required USVString url;
 };
 
-// [NoInterfaceObject]
-// [JSImplementation="@mozilla.org/MozSearchSuggestion;1", ChromeConstructor]
-// interface MozSearchSuggestion {
-//   readonly attribute DOMString engineName;
-//   readonly attribute searchString
-//   formHistory
-//   remote
-// };
+[JSImplementation="@mozilla.org/MozSearchSuggestion;1",
+ChromeConstructor(SearchSuggestionQuery initDict)]
+interface MozSearchSuggestion {
+  readonly attribute DOMString engineName;
+  readonly attribute DOMString searchString;
+  [Pure, Cached]
+  readonly attribute sequence<DOMString> formHistory;
+  [Pure, Cached]
+  readonly attribute sequence<DOMString> remote;
+};
 
-dictionary SearchEngineQuery {
+dictionary SearchEngineQuery : SearchSuggestionQuery {
+  required DOMString searchPurpose;
+  required DOMString healthReportKey;
+};
+
+dictionary SearchSuggestionQuery {
+  required DOMString engineName;
+  required DOMString searchString;
   DOMString name;
-  DOMString searchString;
-  DOMString searchPurpose;
-  SearchEventDescription eventData;
-  DOMString healthReportKey;
-  DOMString engineName;
+  SearchEventDescription originalEvent;
   DOMString formHistory;
   DOMString remote;
   unsigned long remoteTimeout;

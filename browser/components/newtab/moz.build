@@ -22,12 +22,12 @@ EXTRA_JS_MODULES += [
 
 EXTRA_COMPONENTS += [
     'MozContentSearch.js',
-    'MozEngineChangeEvent.js',
     'MozNewTab.js',
     'MozNewTab.manifest',
     'MozNewTabPrefProvider.js',
     'MozPreferencesMap.js',
     'MozSearchEngineDetails.js',
     'MozSearchIcon.js',
+    'MozSearchSuggestion.js',
     'MozSearchUIStrings.js',
 ]

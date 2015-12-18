@@ -6,18 +6,14 @@
 
 this.EXPORTED_SYMBOLS = ["PromiseMessage"];
 
-var msgId = 1;
+var msgId = 0;
 
 var PromiseMessage = {
   send(messageManager, name, data = {}) {
-    let id = msgId++;
+    const id = `${name}_${msgId++}`;
 
     // Make a copy of data so that the caller doesn't see us setting 'id'.
-    let dataCopy = {};
-    for (let prop in data) {
-      dataCopy[prop] = data[prop];
-    }
-    dataCopy.id = id;
+    const dataCopy = Object.assign(data, {id});
 
     // Send the message.
     messageManager.sendAsyncMessage(name, dataCopy);
@@ -25,9 +21,6 @@ var PromiseMessage = {
     // Return a promise that resolves when we get a reply (a message of the same name).
     return new Promise(resolve => {
       messageManager.addMessageListener(name, function listener(reply) {
-        dump(`
-          _________________
-          YaY!!!!! GOT reply.data.id: ${reply.data.id}`)
         if (reply.data.id !== id) {
           return;
         }
