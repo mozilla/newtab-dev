@@ -1,8 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*global XPCOMUtils, PromiseMessage, dump*/
+/*global XPCOMUtils, PromiseMessage, dump, Task*/
 /*exported NSGetFactory*/
+/*
+GetSuggestions
+RemoveFormHistoryEntry
+Search
+SetCurrentEngine
+SpeculativeConnect
+ */
 "use strict";
 const {
   interfaces: Ci,
@@ -14,6 +21,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PromiseMessage",
   "resource://gre/modules/PromiseMessage.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
   "resource:///modules/ContentSearch.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
 
 function out(msg) {
   dump(`
@@ -96,7 +104,7 @@ MozContentSearch.prototype = {
       engines.map(
         engineDetails => new this._win.MozSearchEngineDetails(engineDetails)
       ).reduce(
-        (collector, next) => {collector.push(next); return collector}, safeArray
+        (collector, next) => {collector.push(next); return collector;}, safeArray
       );
       return safeArray;
     }
@@ -155,6 +163,15 @@ MozContentSearch.prototype = {
     };
     PromiseMessage.send(this._mm, "ContentSearch", data);
   },
+
+  manageEngines(){
+    const data = {
+      type: "ManageEngines",
+      data: null,
+    };
+    this._mm.sendAsyncMessage("ContentSearch", data);
+  },
+
   getCurrentEngine() {
     const data = {
       type: "GetCurrentEngineDetails",
