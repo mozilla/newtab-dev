@@ -59,6 +59,10 @@ MozNewTab.prototype = {
     return this._searchProvider;
   },
 
+  get places() {
+    return this._placesProvider;
+  },
+
   __init() {},
 
   init(contentWindow) {
@@ -66,6 +70,7 @@ MozNewTab.prototype = {
     this._mm = getMessageManager(this._win);
     this._prefProvider = new contentWindow.MozNewTabPrefProvider();
     this._searchProvider = new contentWindow.MozContentSearch();
+    this._placesProvider = new contentWindow.MozPlacesProvider();
   },
 
   capturePageThumb(potentialURL) {

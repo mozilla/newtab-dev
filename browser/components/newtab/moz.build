@@ -26,6 +26,7 @@ EXTRA_COMPONENTS += [
     'MozNewTab.js',
     'MozNewTab.manifest',
     'MozNewTabPrefProvider.js',
+    'MozPlacesProvider.js',
     'MozPreferencesMap.js',
     'MozSearchEngineDetails.js',
     'MozSearchIcon.js',

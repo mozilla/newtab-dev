@@ -4,6 +4,9 @@ contract @mozilla.org/MozNewTab;1 {bdd78376-e211-409a-be04-1ad3c11cb469}
 component {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca} MozNewTabPrefProvider.js
 contract @mozilla.org/MozNewTabPrefProvider;1 {fec80b68-e7a0-4db5-9ebc-9b5e5756c9ca}
 
+component {0e72906a-f6c1-4e20-8775-c26ce45193f8} MozPlacesProvider.js
+contract @mozilla.org/MozPlacesProvider;1 {0e72906a-f6c1-4e20-8775-c26ce45193f8}
+
 component {2d3ff5cd-6eae-44a3-bebf-ff49615fb684} MozPreferencesMap.js
 contract @mozilla.org/MozPreferencesMap;1 {2d3ff5cd-6eae-44a3-bebf-ff49615fb684}
 
@@ -21,3 +24,4 @@ contract @mozilla.org/MozSearchIcon;1 {d6c87e53-270e-4285-b407-542b3b46824e}
 
 component {7754952b-50d3-4734-a4e5-934e41b1f435} MozSearchSuggestion.js
 contract @mozilla.org/MozSearchSuggestion;1 {7754952b-50d3-4734-a4e5-934e41b1f435}
+

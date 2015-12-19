@@ -38,6 +38,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageThumbsProvider",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
                                   "resource:///modules/NewTabPrefsProvider.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesProvider",
+                                  "resource:///modules/PlacesProvider.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "UITour",
                                   "resource:///modules/UITour.jsm");
 
@@ -857,6 +860,7 @@ BrowserGlue.prototype = {
     PageThumbsProvider.init();
     RemoteAboutNewTab.init();
     NewTabPrefsProvider.prefs.init();
+    PlacesProvider.places.init();
 
     SessionStore.init();
     BrowserUITelemetry.init();
@@ -1180,6 +1184,8 @@ BrowserGlue.prototype = {
     RemoteAboutNewTab.uninit();
     NewTabPrefsProvider.prefs.uninit();
     PageThumbsProvider.init();
+    PlacesProvider.places.uninit();
+
     AboutNewTab.uninit();
 #ifdef NIGHTLY_BUILD
     if (Services.prefs.getBoolPref("dom.identity.enabled")) {

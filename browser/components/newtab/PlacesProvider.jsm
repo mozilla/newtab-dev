@@ -8,11 +8,30 @@
 
 "use strict";
 
+function out(line, msg) {
+  if (msg === null || msg === undefined) {
+    dump(`\n\n## PlacesProvider ${line} ## : Tried to log something, but it was undefined or null.\n\n`);
+  } else if (typeof msg === 'string') {
+    dump(`\n\n## PlacesProvider ${line} ## : ${msg}\n\n`);
+  } else if (typeof msg === 'object') {
+    dump(`\n\n## PlacesProvider ${line} ## : {\n`);
+    for (let key in msg) {
+      const val = msg[key];
+      dump(`  ${key}: ${val}\n`);
+    }
+    dump('}\n\n');
+  }
+}
+
 this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
-const {interfaces: Ci, utils: Cu} = Components;
+const INBOUND_MESSAGE = "PlacesProvider";
+const OUTBOUND_MESSAGE = INBOUND_MESSAGE;
+
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "BinarySearch",
   "resource://gre/modules/BinarySearch.jsm");
@@ -259,13 +278,67 @@ Links.prototype = {
   }
 };
 
+
+function Places () {}
+
+Places.prototype = {
+
+  init: function () {
+    Cc["@mozilla.org/globalmessagemanager;1"]
+      .getService(Ci.nsIMessageListenerManager)
+      .addMessageListener(INBOUND_MESSAGE, this);
+
+    out(288, 'initialized')
+  },
+
+  destroy: function () {
+    Cc["@mozilla.org/globalmessagemanager;1"]
+      .getService(Ci.nsIMessageListenerManager)
+      .removeMessageListener(INBOUND_MESSAGE, this);
+  },
+
+  _reply: function (msg, type, data) {
+    if (msg.target.messageManager) {
+      msg.target.messageManager.sendAsyncMessage(...this._msgArgs(type, data, msg));
+    }
+  },
+
+  _msgArgs: function (type, data, msg) {
+    let id = null;
+    if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
+      id =  msg.data.id;
+    }
+    out(66, `Replying to message ${id}`);
+    out(67, `${msg}`);
+    return [OUTBOUND_MESSAGE, {
+      type,
+      data,
+      id,
+    }];
+  },
+
+  receiveMessage: function (msg) {
+    out(76, 'GOT MESSAGE');
+    out(77, msg.data);
+    const {type} = msg.data;
+    switch(type) {
+      case 'GetFrecentSites':
+        return this._reply(msg, 'GetFrecentSites', []);
+      default:
+        out(82, `Message ${type} not recognized`);
+        break;
+    }
+  }
+};
+
 /**
  * Singleton that serves as the default link provider for the grid.
  */
 const gLinks = new Links(); // jshint ignore:line
 
-let PlacesProvider = {
+this.PlacesProvider = {
   LinkChecker: LinkChecker,
   LinkUtils: LinkUtils,
   links: gLinks,
+  places: new Places()
 };
