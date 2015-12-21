@@ -21,6 +21,16 @@ if not CONFIG['RELEASE_BUILD']:
         'SearchProvider.jsm',
     ]
 
+EXTRA_JS_MODULES += [
+    'NewTabPrefsProvider.jsm',
+    'NewTabURL.jsm',
+    'PageThumbsProvider.jsm',
+    'PlacesProvider.jsm',
+    'RemoteAboutNewTab.jsm',
+    'RemoteNewTabLocation.jsm',
+    'RemoteNewTabUtils.jsm',
+    'SearchProvider.jsm',
+]
 
 EXTRA_COMPONENTS += [
     'MozContentSearch.js',

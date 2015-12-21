@@ -40,6 +40,9 @@ if(!AppConstants.RELEASE_BUILD) {
                                     "resource:///modules/NewTabPrefsProvider.jsm");
 }
 
+XPCOMUtils.defineLazyModuleGetter(this, "PageThumbsProvider",
+                                  "resource:///modules/PageThumbsProvider.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "UITour",
                                   "resource:///modules/UITour.jsm");
 
