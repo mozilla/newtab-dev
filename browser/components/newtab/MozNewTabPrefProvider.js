@@ -1,16 +1,26 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*global XPCOMUtils, NewTabPrefsProvider*/
+/*global XPCOMUtils, PromiseMessage, Task*/
 /*exported NSGetFactory*/
 "use strict";
 const {interfaces: Ci, utils: Cu} = Components;
 
+Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
-  "resource:///modules/NewTabPrefsProvider.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PromiseMessage",
+  "resource://gre/modules/PromiseMessage.jsm");
 
 function MozNewTabPrefProvider() {}
+
+function getMessageManager(contentWindow) {
+  return contentWindow
+    .QueryInterface(Ci.nsIInterfaceRequestor)
+    .getInterface(Ci.nsIDocShell)
+    .sameTypeRootTreeItem
+    .QueryInterface(Ci.nsIInterfaceRequestor)
+    .getInterface(Ci.nsIContentFrameMessageManager);
+}
 
 MozNewTabPrefProvider.prototype = {
   classDescription: "Implementation of MozNewTabPrefProvider WebIDL interface.",
@@ -25,38 +35,48 @@ MozNewTabPrefProvider.prototype = {
 
   init(contentWindow) {
     this._win = contentWindow;
-    this._setUpPrefChangeListeners();
+    this._mm = getMessageManager(contentWindow);
+    this._mm.addMessageListener("NewTabPrefs:Changed",
+      this._handlePrefsChange.bind(this)
+    );
   },
 
   __init() {},
 
-  _setUpPrefChangeListeners(){
-    function observePref(name){
-      return (handler) => {
-          const pref = `browser.newtabpage.${name}`;
-          NewTabPrefsProvider.prefs.on(pref,
-            (pref, change) => handler(pref, change)
-          );
-          return handler;
-      };
-    }
-    const prefNames = ["enabled", "enhanced", "pinned"];
-    const dispatcher = this._fireEvent.bind(this);
-    prefNames
-      .map(observePref)
-      .reduce(
-        (handler, observer) => observer(handler), dispatcher
-      );
+  _send(data) {
+    return Task.spawn(function* () {
+      const reponse = yield PromiseMessage.send(this._mm, "NewTabPrefs", data);
+      return reponse.data.response;
+    }.bind(this));
+  },
+
+  _handlePrefsChange(data){
+    dump(`
+=================== WOOP THERE IT IS!!!
+NAME AND VALUE = ${name} and ${value}
+    `);
+    const {name, value} =  data;
+
   },
 
   getCurrent(){
-    const prefs = new this._win.MozPreferencesMap();
-    Array.from(NewTabPrefsProvider.prefs.currentPrefs().entries())
-      .map(([name, value]) => [String(name), String(value)])
-      .reduce(
-        (maplike, [name, value]) => maplike.__set(name,value), prefs
+    const data = {
+      "request": "GetCurrent",
+    };
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function*(){
+        const prefs = new this._win.MozPreferencesMap();
+        const reply = yield this._send(data);
+        Array.from(reply)
+          .map(([name, value]) => [String(name), String(value)])
+          .reduce(
+            (maplike, [name, value]) => maplike.__set(name,value), prefs
+          );
+        resolve(prefs);
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
       );
-    return prefs;
+    });
   },
 
   get onprefchange() {

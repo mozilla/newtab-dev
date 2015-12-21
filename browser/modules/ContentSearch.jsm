@@ -1,22 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*globals XPCOMUtils, Services, Task, PrivateBrowsingUtils, SearchSuggestionController*/
+/*globals XPCOMUtils, Services, Task, PrivateBrowsingUtils, SearchSuggestionController,
+  FormHistory*/
 "use strict";
 
 this.EXPORTED_SYMBOLS = [
   "ContentSearch",
 ];
-
-function dumpResult(r){
-  dump(`\n************* DUMP FROM ContentSearch.jsm`);
-  for(var i in r){
-    dump(`
-      ${i} -> ${r[i]}
-    `);
-  }
-  return r;
-}
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
@@ -25,9 +16,9 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this,"PromiseMessage",
   "resource://gre/modules/PromiseMessage.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
   "resource://gre/modules/FormHistory.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
@@ -41,12 +32,6 @@ const MAX_LOCAL_SUGGESTIONS = 3;
 const MAX_SUGGESTIONS = 6;
 
 /**
- * There are two ways to use ContentSearch, through the public interface or
- * through message passing. Basically, any method without "_" on the front
- * you can use to achieve what you need.
- *
- * If you are using the message-passing, read the following.
- *
  * ContentSearch receives messages named INBOUND_MESSAGE and sends messages
  * named OUTBOUND_MESSAGE.  The data of each message is expected to look like
  * { type, data }.  type is the message's type (or subtype if you consider the
@@ -85,7 +70,7 @@ const MAX_SUGGESTIONS = 6;
  *   Search
  *     Performs a search.
  *     Any GetSuggestions messages in the queue from the same target will be
- *     cancelled.
+ *     canceled.
  *     data: { engineName, searchString, healthReportKey, searchPurpose }
  *   SetCurrentEngine
  *     Sets the current engine.
@@ -101,11 +86,17 @@ const MAX_SUGGESTIONS = 6;
  *   CurrentEngine
  *     Broadcast when the current engine changes.
  *     data: see _currentEngineObj
- *   EngineDetails
- *     Narrow-cast response with the details of a particular engine.
  *   CurrentState
  *     Broadcast when the current search state changes.
  *     data: see _currentStateObj
+ *   EngineDetails
+ *     Narrow-cast response with the details of a particular engine.
+ *   FormHistoryEntryAdded
+ *     Sent in reply to AddFormHistoryEntry.
+ *     data: boolean, indicating that the form entry was added.
+ *   FormHistoryEntryRemoved
+ *     Sent in reply to RemoveFormHistoryEntry.
+ *     data: boolean, indicating that the form entry was removed.
  *   State
  *     Sent in reply to GetState.
  *     data: see _currentStateObj
@@ -119,27 +110,17 @@ const MAX_SUGGESTIONS = 6;
  *     Sent in reply to GetSuggestions when pending GetSuggestions events are
  *     canceled.
  *     data: null
- *   FormHistoryEntryAdded
- *     Sent in reply to AddFormHistoryEntry.
- *     data: boolean, indicating that the form entry was added.
- *   FormHistoryEntryRemoved
- *     Sent in reply to RemoveFormHistoryEntry.
- *     data: boolean, indicating that the form entry was removed.
  *   VisibleEngines
  *     Sent in reply to GetVisibleEngines.
  *     data: Array, containing a list a objects with each engine's details.
  */
 
 this.ContentSearch = {
-
-  // Inbound events are queued and processed in FIFO order instead of handling
-  // them immediately, which would result in non-FIFO responses due to the
-  // asynchrononicity added by converting image data URIs to ArrayBuffers.
   _eventQueue: [],
   _currentEventPromise: null,
 
-  // This is used to handle search suggestions.  It maps xul:browsers to objects
-  // { controller, previousFormHistoryResult }.  See _onMessageGetSuggestions.
+  // This is used to handle search suggestions. It maps xul:browsers to objects
+  // { controller, previousFormHistoryResult }. See _onMessageGetSuggestions.
   _suggestionMap: new WeakMap(),
 
   // Resolved when we finish shutting down.
@@ -158,8 +139,9 @@ this.ContentSearch = {
     Services.prefs.addObserver("browser.search.hiddenOneOffs", this, false);
     this._stringBundle = Services.strings.createBundle("chrome://global/locale/autocomplete.properties");
   },
+
   _getEngineDetailsByName(name){
-    const engine = Services.search.getEngineByName(name);
+    let engine = Services.search.getEngineByName(name);
     if(!engine){
       return null;
     }
@@ -169,12 +151,13 @@ this.ContentSearch = {
     let obj = {
       identifier: engine.identifier,
       name: engine.name,
-      placeholder: placeholder,
       icons: engine.getIcons(),
       preconnectOrigin: new URL(engine.searchForm).origin,
+      placeholder,
     };
     return obj;
   },
+
   get searchSuggestionUIStrings() {
     if (this._searchSuggestionUIStrings) {
       return this._searchSuggestionUIStrings;
@@ -182,10 +165,10 @@ this.ContentSearch = {
     this._searchSuggestionUIStrings = {};
     let searchBundle = Services.strings.createBundle("chrome://browser/locale/search.properties");
     let stringNames = ["searchHeader", "searchPlaceholder", "searchForSomethingWith",
-                       "searchWithHeader", "searchSettings"];
-    for (let name of stringNames) {
-      this._searchSuggestionUIStrings[name] = searchBundle.GetStringFromName(name);
-    }
+      "searchWithHeader", "searchSettings"];
+    stringNames
+      .map(name => [name, searchBundle.GetStringFromName(name)])
+      .forEach(([name, value]) => this._searchSuggestionUIStrings[name] = value);
     return this._searchSuggestionUIStrings;
   },
 
@@ -252,7 +235,7 @@ this.ContentSearch = {
     case "browser-search-engine-modified":
       this._eventQueue.push({
         type: "Observe",
-        data: data,
+        data,
       });
       this._processEventQueue();
       break;
@@ -308,7 +291,7 @@ this.ContentSearch = {
     let methodName = "_onMessage" + msg.data.type;
     if (methodName in this) {
       yield this._initService();
-      this[methodName](msg, msg.data.data);
+      yield this[methodName](msg, msg.data.data);
       msg.target.removeEventListener("SwapDocShells", msg, true);
     }
   }),
@@ -324,32 +307,19 @@ this.ContentSearch = {
   },
 
   _onMessageGetVisibleEngines(msg){
-    dump(`
-
-+++++++++++++++++++++++++ GetVisibleEngines MSG!!!*******
-    `);
     let engines = this._visibleEnginesDetails;
-    dump(`GOT THE FOLLOWING ENGINES !!!! ${engines} ${typeof engines} !!!`);
     this._reply(msg, "VisibleEngines", engines);
   },
 
   _onMessageGetEngineDetails(msg){
-    const name = msg.data.data;
-    for(var i in msg.data){
-      dump(`$$$$$$$ _onMessageGetEngineDetails
-${i} => ${msg.data[i]}
-        `);
-    }
-    dump(`
-~~~~~~~~~~~~~~~~~ LOOKING UP ENGINE DETAILS FOR ${name} ~~~~~~
-~~~~~~~~~
-    `);
-    let engineDetails = this._getEngineDetailsByName(name)
-    this._reply(msg, "EngineDetails", engineDetails)
+    let {data: name} = msg.data;
+    let engineDetails = this._getEngineDetailsByName(name);
+    this._reply(msg, "EngineDetails", engineDetails);
   },
 
   _onMessageGetStrings: function (msg) {
-    this._reply(msg, "Strings", this.searchSuggestionUIStrings);
+    let strings = this.searchSuggestionUIStrings;
+    this._reply(msg, "Strings", strings);
   },
 
   _onMessageSearch: function (msg, data) {
@@ -399,12 +369,12 @@ ${i} => ${msg.data[i]}
     Services.search.currentEngine = Services.search.getEngineByName(data);
   },
 
-  _onMessageManageEngines: function (msg, data) {
+  _onMessageManageEngines: function (msg) {
     let browserWin = msg.target.ownerDocument.defaultView;
     browserWin.openPreferences("paneSearch");
   },
 
-  _onMessageGetSuggestions: Task.async(function* (msg, data) {
+  _onMessageGetSuggestions(msg, data){
     this._ensureDataHasProperties(data, [
       "engineName",
       "searchString",
@@ -425,32 +395,34 @@ ${i} => ${msg.data[i]}
     // fetch() rejects its promise if there's a pending request, but since we
     // process our event queue serially, there's never a pending request.
     this._currentSuggestion = { controller: controller, target: msg.target };
-    let suggestions = yield controller.fetch(data.searchString, priv, engine);
-    this._currentSuggestion = null;
+    return Task.spawn(function* () {
+      let suggestions = yield controller.fetch(data.searchString, priv, engine);
+      this._currentSuggestion = null;
 
-    // suggestions will be null if the request was cancelled
-    if (!suggestions) {
-      return;
-    }
+      // suggestions will be null if the request was canceled
+      if (!suggestions) {
+        return;
+      }
 
-    // Keep the form history result so RemoveFormHistoryEntry can remove entries
-    // from it.  Keeping only one result isn't foolproof because the client may
-    // try to remove an entry from one set of suggestions after it has requested
-    // more but before it's received them.  In that case, the entry may not
-    // appear in the new suggestions.  But that should happen rarely.
-    browserData.previousFormHistoryResult = suggestions.formHistoryResult;
+      // Keep the form history result so RemoveFormHistoryEntry can remove entries
+      // from it.  Keeping only one result isn't foolproof because the client may
+      // try to remove an entry from one set of suggestions after it has requested
+      // more but before it's received them.  In that case, the entry may not
+      // appear in the new suggestions.  But that should happen rarely.
+      browserData.previousFormHistoryResult = suggestions.formHistoryResult;
 
-    this._reply(msg, "Suggestions", {
-      engineName: data.engineName,
-      searchString: suggestions.term,
-      formHistory: suggestions.local,
-      remote: suggestions.remote,
-    });
-  }),
+      this._reply(msg, "Suggestions", {
+        engineName: data.engineName,
+        searchString: suggestions.term,
+        formHistory: suggestions.local,
+        remote: suggestions.remote,
+      });
+    }.bind(this));
+  },
 
   _onMessageAddFormHistoryEntry: function (msg, entry) {
     const msgType = "FormHistoryEntryAdded";
-    let isPrivate = true;
+    let isPrivate = false;
     try {
       // isBrowserPrivate assumes that the passed-in browser has all the normal
       // properties, which won't be true if the browser has been destroyed.
@@ -549,10 +521,6 @@ ${i} => ${msg.data[i]}
     if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
       id =  msg.data.id;
     }
-    dump(`
-      ==========
-      THE MSG ID IS ${id}
-    `);
     return [OUTBOUND_MESSAGE, {
       type,
       data,

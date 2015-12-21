@@ -6,9 +6,15 @@
 this.EXPORTED_SYMBOLS = ["NewTabPrefsProvider"];
 
 const {interfaces: Ci, utils: Cu, classes: Cc} = Components;
+const gMsgMngr = Cc["@mozilla.org/globalmessagemanager;1"]
+  .getService(Ci.nsIMessageListenerManager);
+
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PromiseMessage",
+  "resource://gre/modules/PromiseMessage.jsm");
 XPCOMUtils.defineLazyGetter(this, "EventEmitter", function() {
   const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
   return EventEmitter;
@@ -31,50 +37,89 @@ function PrefsProvider() {
 }
 
 PrefsProvider.prototype = {
-  updatePref(){
-
+  updatePref(name, value){
+    if(!prefsMap.has(name)){
+      return false
+    }
+    Preferences.set(name, value);
+    return true;
   },
 
   receiveMessage(msg) {
     dump(`
 ++++++++++++++++++++++++++++++++++++++++++++
-      NewTabPrefsProvider GOT MESSAGE! ${msg.data}
+      NewTabPrefsProvider GOT MESSAGE! ${msg.data.request}
     `);
-    switch(msg.data.action){
-    case "update":
-      updatePref(msg.data);
+    switch(msg.data.request){
+    case "GetCurrent":
+      let prefs = this.currentPrefs();
+      this._reply(msg, prefs);
+      break;
+    case "updatePref":
+      let result = this.updatePref(msg.data);
+      this._reply(msg, result);
       break;
     }
   },
 
-  observe(subject, topic, data) { // jshint ignore:line
-    if (topic !== "nsPref:changed" || !prefsMap.has(data)) {
-      let msg = `Observing unknown topic or preference: ${topic} / {data}`;
+  _reply(msg, data) {
+    dump(`
+++++++++++++++++++++++++++++++++++++++++++++
+      NewTabPrefsProvider TRYING TO REPLy
+    `);
+    // We reply asynchronously to messages, and by the time we reply the browser
+    // we're responding to may have been destroyed.  messageManager is null then.
+    if (!msg.target.messageManager) {
+      return;
+    }
+    let id = null;
+    if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
+      id =  msg.data.id;
+    }
+    let reply = {
+      response: data,
+      id,
+    };
+    dump(`
+      ++++++++++++++++++++++++++++++++++++++++++++
+      NewTabPrefsProvider SENDING REPLY ${JSON.stringify(reply)}
+    `);
+    msg.target.messageManager.sendAsyncMessage("NewTabPrefs", reply);
+    dump("\n ,,....AND SENT!!!");
+  },
+
+  observe(subject, topic, name) { // jshint ignore:line
+    if (topic !== "nsPref:changed" || !prefsMap.has(name)) {
+      let msg = `Observing unknown topic or preference: ${topic} / {name}`;
       let error = new Error(msg);
       return Cu.reportError(error);
     }
-    let type = prefsMap.get(data);
-    let prefName = data;
+    let type = prefsMap.get(name);
     let value;
     switch (type) {
     case "bool":
-      value = Preferences.get(prefName, false);
+      value = Preferences.get(name, false);
       break;
     case "str":
-      value = Preferences.get(prefName, "");
+      value = Preferences.get(name, "");
       break;
     case "int":
-      value = Preferences.get(prefName, 0);
+      value = Preferences.get(name, 0);
       break;
     case "localized":
       try {
-        value = Preferences.get(prefName, "", Ci.nsIPrefLocalizedString);
+        value = Preferences.get(name, "", Ci.nsIPrefLocalizedString);
       } catch (e) {
-        value = Preferences.get(prefName, "");
+        value = Preferences.get(name, "");
       }
       break;
     }
-    this.emit(data, value);
+    this.emit(name, value);
+    dump(`
+!!!!!!!!!!!!!!!!!!!!!!
+broadcastAsyncMessage ${name} and ${value}!!!!!
+    `);
+    gMsgMngr.broadcastAsyncMessage("NewTabPrefs:Changed", {name, value});
   },
 
   currentPrefs(){
@@ -85,21 +130,17 @@ PrefsProvider.prototype = {
   },
 
   init() {
-    Cc["@mozilla.org/globalmessagemanager;1"]
-      .getService(Ci.nsIMessageListenerManager)
-      .addMessageListener("NewTabPrefs", this);
-    for (let pref of prefsMap.keys()) {
-      Services.prefs.addObserver(pref, this, false);
-    }
+    gMsgMngr.addMessageListener("NewTabPrefs", this);
+    Array.from(prefsMap.keys()).forEach(
+      pref => Services.prefs.addObserver(pref, this, false)
+    );
   },
 
   uninit() {
-    for (let pref of prefsMap.keys()) {
-      Services.prefs.removeObserver(pref, this, false);
-    }
-    Cc["@mozilla.org/globalmessagemanager;1"].
-      getService(Ci.nsIMessageListenerManager).
-      removeMessageListener("NewTabPrefs", this);
+    Array.from(prefsMap.keys()).forEach(
+      pref => Services.prefs.removeObserver(pref, this, false)
+    );
+    gMsgMngr.removeMessageListener("NewTabPrefs", this);
   }
 };
 

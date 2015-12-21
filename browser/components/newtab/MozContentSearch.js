@@ -4,9 +4,9 @@
 /*global XPCOMUtils, PromiseMessage, dump, Task*/
 /*exported NSGetFactory*/
 /*
-GetSuggestions
-SetCurrentEngine
-SpeculativeConnect
+TODO:
+  SetCurrentEngine
+  SpeculativeConnect
  */
 "use strict";
 const {
@@ -59,7 +59,7 @@ MozContentSearch.prototype = {
     [Ci.nsISupports, Ci.nsIDOMGlobalPropertyInitializer]
   ),
   _UIStrings: null,
-  _contentWindow: null,
+  _win: null,
   _mm: null,
   _engineCache: new Map(),
   init(contentWindow) {
@@ -91,7 +91,7 @@ MozContentSearch.prototype = {
         const result = yield this._send(data);
         resolve(result);
       }.bind(this)).catch(
-        ({message}) => reject(new this._win._Error(message))
+        ({message}) => reject(new this._win.Error(message))
       );
     });
   },

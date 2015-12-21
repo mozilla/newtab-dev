@@ -8,7 +8,7 @@ interface MozNewTab {
 [JSImplementation="@mozilla.org/MozNewTabPrefProvider;1", ChromeConstructor]
 interface MozNewTabPrefProvider : EventTarget {
   attribute EventHandler onprefchange;
-  MozPreferencesMap getCurrent();
+  Promise<MozPreferencesMap> getCurrent();
 };
 
 [JSImplementation="@mozilla.org/MozPreferencesMap;1", ChromeConstructor]

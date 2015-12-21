@@ -12,17 +12,9 @@ const {
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.importGlobalProperties(["URL"]);
 
+
 function MozSearchSuggestion() {}
 
-
-/*
-interface MozSearchSuggestion {
-  readonly attribute DOMString engineName;
-  readonly attribute searchString;
-  readonly sequence<DOMString> formHistory;
-  readonly sequence<DOMString> remote;
-};
- */
 function out(msg) {
   dump(`
 =============&&&&&&&&&&&&&============
@@ -80,7 +72,6 @@ MozSearchSuggestion.prototype = {
     safeArray.push(...iterable);
     return safeArray;
   }
-
 };
 
 var components = [MozSearchSuggestion];

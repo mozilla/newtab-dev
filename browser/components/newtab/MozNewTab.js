@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-/*global XPCOMUtils, PageThumbs, BackgroundPageThumbs*/
+/*global XPCOMUtils, BackgroundPageThumbs, PromiseMessage*/
 /*exported NSGetFactory*/
 "use strict";
 const {
@@ -11,25 +11,12 @@ const {
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.importGlobalProperties(["URL"]);
-XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
-  "resource://gre/modules/PageThumbs.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "BackgroundPageThumbs",
-  "resource://gre/modules/BackgroundPageThumbs.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PromiseMessage",
+  "resource://gre/modules/PromiseMessage.jsm");
 /**
  * @constructor
  */
 function MozNewTab() {
-}
-/**
- * Helper function creates contextualized objects
- * that can be used to quickly construct things
- * that can be returned to the ContentWindow.
- * @param  {Any} Constructor A Constructor.
- * @return {Function} A function that when called returns
- *                      an contextualized instance.
- */
-function contextualObject(Constructor){
-  return (...args) => new Constructor(...args);
 }
 
 function out(msg){
@@ -40,9 +27,19 @@ ${msg}
 `);
 }
 
+function getMessageManager(contentWindow) {
+  out("getting message manager form getMessageManager");
+  return contentWindow
+    .QueryInterface(Ci.nsIInterfaceRequestor)
+    .getInterface(Ci.nsIDocShell)
+    .sameTypeRootTreeItem
+    .QueryInterface(Ci.nsIInterfaceRequestor)
+    .getInterface(Ci.nsIContentFrameMessageManager);
+}
 
 MozNewTab.prototype = {
-  _contentWindow: null,
+  _win: null,
+  _mm: null,
 
   classDescription: "Implementation of MozNewTab.webidl",
 
@@ -65,53 +62,36 @@ MozNewTab.prototype = {
   __init() {},
 
   init(contentWindow) {
-    this._contentWindow = contentWindow;
+    this._win = contentWindow;
+    this._mm = getMessageManager(this._win);
     this._prefProvider = new contentWindow.MozNewTabPrefProvider();
     this._searchProvider = new contentWindow.MozContentSearch();
   },
 
-  _log(msg){
-    this._contentWindow.console.log(msg);
-  },
-
-  _converToBlob(requestUrl){
-    return new Promise((resolve,reject)=>{
-      const imgSrc = PageThumbs.getThumbnailURL(requestUrl);
-      this._log("creating image src", imgSrc);
-        const doc = this._contentWindow.document;
-        const img = doc.createElement("img");
-        img.onload = () => {
-          const canvas = doc.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          const { naturalWidth: width, naturalHeight: height } = img;
-          canvas.width = width;
-          canvas.height = height;
-          ctx.drawImage(img, 0, 0, width, height);
-          this._log("TO BLOB!");
-          canvas.toBlob(resolve);
-        };
-     img.src = imgSrc;
-     img.onerror = () => reject(new Error("Error loading ${requestUrl.href}"));
+  capturePageThumb(potentialURL) {
+    const data = {
+      request: "CaptureIfMissing",
+      url: "",
+    };
+    try{
+      data.url = new URL(potentialURL).href;
+    } catch(err){
+      return this._win.Promise.reject(err.message);
+    }
+    return new this._win.Promise((resolve, reject) => {
+      Task.spawn(function* () {
+        const result = yield this._requestPageThumb(data);
+        resolve(Cu.cloneInto(result, this._win));
+      }.bind(this)).catch(
+        ({message}) => reject(new this._win.Error(message))
+      );
     });
   },
-
-  capturePageThumb(url) {
-    const error = contextualObject(this._contentWindow.Error);
-    const promise = contextualObject(this._contentWindow.Promise);
-    return promise((resolve, reject)=>{
-      this._log("here we go!", url);
-      let requestUrl;
-      try{
-        requestUrl = new URL(url);
-      }catch(err){
-        reject(error(err.message));
-      }
-      const rejectClient = (err) => reject(error(err.message));
-      BackgroundPageThumbs.captureIfMissing(requestUrl.href)
-        .then(this._converToBlob)
-        .then(blob => resolve(blob))
-        .catch(rejectClient);
-    });
+  _requestPageThumb(data) {
+    return Task.spawn(function* () {
+      const reply = yield PromiseMessage.send(this._mm, "PageThumbsProvider", data);
+      return reply.data.data;
+    }.bind(this));
   },
 };
 
