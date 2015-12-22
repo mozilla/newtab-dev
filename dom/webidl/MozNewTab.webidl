@@ -32,6 +32,7 @@ interface MozContentSearch : EventTarget {
   Promise<boolean> addFormHistoryEntry(DOMString entry);
   Promise<boolean> removeFormHistoryEntry(DOMString entry);
   attribute EventHandler onenginechange;
+  attribute EventHandler onvisibleenginechange;
   Promise<sequence<MozSearchEngineDetails>> getVisibleEngines();
 };
 

@@ -58,9 +58,6 @@ const MAX_SUGGESTIONS = 6;
  *   GetStrings
  *     Retrieves localized search UI strings.
  *     data: null
- *   GetVisibleEngines
- *      Gets a list of the the current visible engines.
- *      data: null
  *   ManageEngines
  *     Opens the search engine management window.
  *     data: null
@@ -110,9 +107,6 @@ const MAX_SUGGESTIONS = 6;
  *     Sent in reply to GetSuggestions when pending GetSuggestions events are
  *     canceled.
  *     data: null
- *   VisibleEngines
- *     Sent in reply to GetVisibleEngines.
- *     data: Array, containing a list a objects with each engine's details.
  */
 
 this.ContentSearch = {
@@ -304,11 +298,6 @@ this.ContentSearch = {
   _onMessageGetCurrentEngineDetails(msg) {
     let engine = this._currentEngineObj;
     this._reply(msg, "CurrentEngineDetails", engine);
-  },
-
-  _onMessageGetVisibleEngines(msg){
-    let engines = this._visibleEnginesDetails;
-    this._reply(msg, "VisibleEngines", engines);
   },
 
   _onMessageGetEngineDetails(msg){
