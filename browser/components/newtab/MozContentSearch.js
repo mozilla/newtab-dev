@@ -98,15 +98,15 @@ MozContentSearch.prototype = {
 
   getVisibleEngines() {
     const data = {
-      type: "GetVisibleEngines",
+      type: "GetState",
       data: null,
     };
     return new this._win.Promise((resolve, reject) => {
       Task.spawn(function* () {
         const response = yield this._send(data);
-        const engines = response.map(
+        const engines = response.engines.map(
           engineDetails => this._storeEngine(engineDetails)
-        )
+        );
         const safeArray = new this._win.Array();
         safeArray.push(...engines);
         resolve(safeArray);
@@ -209,6 +209,10 @@ MozContentSearch.prototype = {
     case "CurrentEngine":
       this._fireEngineChangeEvent(data.name);
       break;
+      // Search engine has been removed or added!
+    case "CurrentState":
+      this._fireStateChangeEvent(data.engines);
+      break;
     case "Strings":
       this._UIStrings = this._processUIStrings(data);
       break;
@@ -235,6 +239,21 @@ MozContentSearch.prototype = {
         engine
       };
       const event = new this._win.MozSearchEngineChangeEvent("enginechange", eventInit);
+      this.__DOM_IMPL__.dispatchEvent(event);
+    }.bind(this));
+  },
+
+  _fireStateChangeEvent(engines) {
+    Task.spawn(function* () {
+      const allEngines = engines.map(
+        engineDetails => this._storeEngine(engineDetails)
+      );
+      const safeArray = new this._win.Array();
+      safeArray.push(...allEngines);
+      const eventInit = {
+        engines: safeArray
+      };
+      const event = new this._win.MozVisibleSearchEnginesChangeEvent("visibleenginechange", eventInit);
       this.__DOM_IMPL__.dispatchEvent(event);
     }.bind(this));
   },
