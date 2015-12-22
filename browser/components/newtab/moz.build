@@ -23,6 +23,7 @@ EXTRA_JS_MODULES += [
 
 EXTRA_COMPONENTS += [
     'MozContentSearch.js',
+    'MozHistorySite.js',
     'MozNewTab.js',
     'MozNewTab.manifest',
     'MozNewTabPrefProvider.js',

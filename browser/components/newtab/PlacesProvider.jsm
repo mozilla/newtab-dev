@@ -278,6 +278,10 @@ Links.prototype = {
   }
 };
 
+/**
+ * Singleton that serves as the default link provider for the grid.
+ */
+const gLinks = new Links(); // jshint ignore:line
 
 function Places () {}
 
@@ -299,11 +303,11 @@ Places.prototype = {
 
   _reply: function (msg, type, data) {
     if (msg.target.messageManager) {
-      msg.target.messageManager.sendAsyncMessage(...this._msgArgs(type, data, msg));
+      msg.target.messageManager.sendAsyncMessage(...this._msgArgs(msg, type, data));
     }
   },
 
-  _msgArgs: function (type, data, msg) {
+  _msgArgs: function (msg, type, data) {
     let id = null;
     if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
       id =  msg.data.id;
@@ -321,9 +325,20 @@ Places.prototype = {
     out(76, 'GOT MESSAGE');
     out(77, msg.data);
     const {type} = msg.data;
+    const sites = [{
+      frecency: 200,
+      url: 'https://mozilla.com',
+      title: 'Mozilla',
+      type: 'history',
+      lastVisitDate: 1450201129309672
+    }];
     switch(type) {
       case 'GetFrecentSites':
-        return this._reply(msg, 'GetFrecentSites', []);
+        // this._reply(msg, 'GetFrecentSites', sites);
+        gLinks.getLinks()
+          .then(links => this._reply(msg, 'GetFrecentSites',  links || []))
+          .catch(e => out(339, e));
+        break;
       default:
         out(82, `Message ${type} not recognized`);
         break;
@@ -331,10 +346,7 @@ Places.prototype = {
   }
 };
 
-/**
- * Singleton that serves as the default link provider for the grid.
- */
-const gLinks = new Links(); // jshint ignore:line
+
 
 this.PlacesProvider = {
   LinkChecker: LinkChecker,

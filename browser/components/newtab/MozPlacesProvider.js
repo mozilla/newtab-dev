@@ -20,16 +20,16 @@ XPCOMUtils.defineLazyModuleGetter(this, "PromiseMessage",
 
 function out(msg) {
   if (msg === null || msg === undefined) {
-    dump(`\n\n## MozPlacesProvider ## : Tried to log something, but it was undefined or null.\n\n`);
+    dump(`\n## MozPlacesProvider ## : Tried to log something, but it was undefined or null.\n`);
   } else if (typeof msg === 'string') {
-    dump(`\n\n## MozPlacesProvider ## : ${msg}\n\n`);
+    dump(`\n## MozPlacesProvider ## : ${msg}\n`);
   } else if (typeof msg === 'object') {
-    dump('\n\n## MozPlacesProvider ## : {\n');
+    dump('\n## MozPlacesProvider ## : {\n');
     for (let key in msg) {
       const val = msg[key];
-      dump(`  ${key}: ${val}\n`);
+      dump(`  ${key}: ${msg}\n`);
     }
-    dump('}\n\n');
+    dump('}\n');
   }
 }
 
@@ -59,29 +59,19 @@ MozPlacesProvider.prototype = {
 
   getFrecentSites() {
     return new this._win.Promise((resolve, reject) => {
-
-      // Task
-      //   .spawn(function* () {
-      //     out('getting sites');
-      //     const response = yield this._send({type: 'GetFrecentSites'});
-      //     out(response);
-      //     resolve(response);
-      //   }.bind(this))
-      //   .catch(error => {
-      //     out('error!');
-      //     out(error);
-      //     reject(new this._win.Error(error.message);
-      //   });
-
       this._send({type: 'GetFrecentSites'})
       .then(data => {
         out('ALL GOOD');
-        out(data)
+        const results = new this._win.Array();
+        data.forEach(site => {
+          const safeSite = new this._win.MozHistorySite(site);
+          out(safeSite.toJSON());
+          results.push(safeSite);
+        });
+        out(results);
+        resolve(results);
       })
       .catch(err => out(err));
-
-      const safeArray = new this._win.Array();
-      resolve(safeArray);
     });
   },
 
