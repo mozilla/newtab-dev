@@ -22,24 +22,6 @@ function getMessageManager(contentWindow) {
     .getInterface(Ci.nsIContentFrameMessageManager);
 }
 
-
-function out(msg) {
-  dump(`
-=============&&&&&&&&&&&&&============
-${msg}
-
-`);
-}
-
-function dumpObj(r) {
-  dump(`\n ================ DUMPING object ${r} =========\n`);
-  for (var i in r) {
-    out(`${i} -> ${r[i]} (type: ${typeof r[i]})`);
-  }
-  return r;
-}
-
-
 MozNewTabPrefProvider.prototype = {
   classDescription: "Implementation of MozNewTabPrefProvider WebIDL interface.",
 
@@ -98,11 +80,10 @@ MozNewTabPrefProvider.prototype = {
 
   _fireEvent(msg) {
     const {name, value} = msg.data;
-    this._win.console.log("Trying to dispatchEvent", name, value);
-    const initDict = {name, value};
-    const event = new this._win.MozPrefChangeEvent("prefchange", initDict);
+    const event = new this._win.MozPrefChangeEvent("prefchange", {name, value});
     this.__DOM_IMPL__.dispatchEvent(event);
-  }
+  },
+
 };
 
 var NSGetFactory = XPCOMUtils.generateNSGetFactory([MozNewTabPrefProvider]);
