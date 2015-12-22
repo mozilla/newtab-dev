@@ -69,7 +69,6 @@ function lazyPathGetter(constProp, dirKey) {
   return function () {
     let path;
     try {
-      debugger;
       path = Services.dirsvc.get(dirKey, Ci.nsIFile).path;
       delete SharedAll.Constants.Path[constProp];
       SharedAll.Constants.Path[constProp] = path;
