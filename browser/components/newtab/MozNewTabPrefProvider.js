@@ -51,12 +51,12 @@ MozNewTabPrefProvider.prototype = {
   },
 
   _handlePrefsChange(data){
+    const {name, value} =  data;
     dump(`
 =================== WOOP THERE IT IS!!!
 NAME AND VALUE = ${name} and ${value}
     `);
-    const {name, value} =  data;
-
+    
   },
 
   getCurrent(){
