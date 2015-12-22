@@ -1179,6 +1179,7 @@ BrowserGlue.prototype = {
 
     RemoteAboutNewTab.uninit();
     NewTabPrefsProvider.prefs.uninit();
+    PageThumbsProvider.init();
     AboutNewTab.uninit();
 #ifdef NIGHTLY_BUILD
     if (Services.prefs.getBoolPref("dom.identity.enabled")) {
