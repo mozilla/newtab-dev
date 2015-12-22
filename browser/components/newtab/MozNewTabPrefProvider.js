@@ -22,6 +22,24 @@ function getMessageManager(contentWindow) {
     .getInterface(Ci.nsIContentFrameMessageManager);
 }
 
+
+function out(msg) {
+  dump(`
+=============&&&&&&&&&&&&&============
+${msg}
+
+`);
+}
+
+function dumpObj(r) {
+  dump(`\n ================ DUMPING object ${r} =========\n`);
+  for (var i in r) {
+    out(`${i} -> ${r[i]} (type: ${typeof r[i]})`);
+  }
+  return r;
+}
+
+
 MozNewTabPrefProvider.prototype = {
   classDescription: "Implementation of MozNewTabPrefProvider WebIDL interface.",
 
@@ -37,7 +55,7 @@ MozNewTabPrefProvider.prototype = {
     this._win = contentWindow;
     this._mm = getMessageManager(contentWindow);
     this._mm.addMessageListener("NewTabPrefs:Changed",
-      this._handlePrefsChange.bind(this)
+      this._fireEvent.bind(this)
     );
   },
 
@@ -48,15 +66,6 @@ MozNewTabPrefProvider.prototype = {
       const reponse = yield PromiseMessage.send(this._mm, "NewTabPrefs", data);
       return reponse.data.response;
     }.bind(this));
-  },
-
-  _handlePrefsChange(data){
-    const {name, value} =  data;
-    dump(`
-=================== WOOP THERE IT IS!!!
-NAME AND VALUE = ${name} and ${value}
-    `);
-
   },
 
   getCurrent(){
@@ -87,10 +96,11 @@ NAME AND VALUE = ${name} and ${value}
     this.__DOM_IMPL__.setEventHandler("onprefchange", handler);
   },
 
-  _fireEvent(pref, change) {
-    this._win.console.log("Trying to dispatchEvent", pref, change);
-    const eventDetail = Cu.cloneInto({detail: {pref, change}}, this._win);
-    const event = new this._win.CustomEvent("prefchange", eventDetail);
+  _fireEvent(msg) {
+    const {name, value} = msg.data;
+    this._win.console.log("Trying to dispatchEvent", name, value);
+    const initDict = {name, value};
+    const event = new this._win.MozPrefChangeEvent("prefchange", initDict);
     this.__DOM_IMPL__.dispatchEvent(event);
   }
 };
