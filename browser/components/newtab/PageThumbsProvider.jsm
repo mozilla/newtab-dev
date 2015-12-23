@@ -12,6 +12,8 @@ const {
   classes: Cc
 } = Components;
 
+const PAGE_THUMBS_EVENT = "PageThumbsProvider";
+
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -70,10 +72,10 @@ const PageThumbsProvider = {
     });
   },
   init() {
-    gMsgMngr.addMessageListener("PageThumbsProvider", this);
+    gMsgMngr.addMessageListener(PAGE_THUMBS_EVENT, this);
   },
   uninit() {
-    gMsgMngr.removeMessageListener("PageThumbsProvider", this);
+    gMsgMngr.removeMessageListener(PAGE_THUMBS_EVENT, this);
   },
   receiveMessage(msg) {
     dump(`
@@ -113,7 +115,7 @@ const PageThumbsProvider = {
     ++++++++++++++++++++++++++++++++++++++++++++
     PageThumbsProvider SENDING REPLY ${JSON.stringify(reply)}
   `);
-    msg.target.messageManager.sendAsyncMessage("NewTabPrefs", reply);
+    msg.target.messageManager.sendAsyncMessage(PAGE_THUMBS_EVENT, reply);
     dump("\n ,PageThumbsProvider,....AND SENT!!!");
   }
 };
