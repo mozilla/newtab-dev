@@ -26,7 +26,6 @@ const PREF_SELECTED_LOCALE = "general.useragent.locale";
 const DEFAULT_PAGE_LOCATION = "http://localhost:1944";
                               // "v%VERSION%/%CHANNEL%/%LOCALE%/index.html";
 
-
 const VALID_CHANNELS = new Set(["esr", "release", "beta", "aurora", "nightly"]);
 
 const NEWTAB_VERSION = "2";
