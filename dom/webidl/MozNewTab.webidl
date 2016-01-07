@@ -113,24 +113,5 @@ enum SearchSelectionKind {
 
 [JSImplementation="@mozilla.org/MozPlacesProvider;1", ChromeConstructor]
 interface MozPlacesProvider : EventTarget {
-  Promise<sequence<MozHistorySite>> getFrecentSites();
-};
-
-[JSImplementation="@mozilla.org/MozHistorySite;1",
-ChromeConstructor(HistorySite site)]
-interface MozHistorySite {
-  readonly attribute unsigned long frecency;
-  readonly attribute unsigned long lastVisitDate;
-  readonly attribute DOMString title;
-  readonly attribute DOMString type;
-  readonly attribute USVString url;
-  stringifier DOMString toJSON();
-};
-
-dictionary HistorySite {
-  unsigned long frecency;
-  unsigned long lastVisitDate;
-  DOMString title = "";
-  DOMString type;
-  USVString url;
+  Promise<object?> getFrecentSites();
 };

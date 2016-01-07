@@ -64,14 +64,16 @@ MozPlacesProvider.prototype = {
         out('ALL GOOD');
         const results = new this._win.Array();
         data.forEach(site => {
-          const safeSite = new this._win.MozHistorySite(site);
-          out(safeSite.toJSON());
+          const safeSite = new this._win.Object(site);
           results.push(safeSite);
         });
         out(results);
-        resolve(results);
+        resolve({data: results});
       })
-      .catch(err => out(err));
+      .catch(err => {
+        out(err);
+        reject(err);
+      });
     });
   },
 
