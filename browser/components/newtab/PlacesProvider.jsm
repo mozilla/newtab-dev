@@ -8,21 +8,6 @@
 
 "use strict";
 
-function out(line, msg) {
-  if (msg === null || msg === undefined) {
-    dump(`\n\n## PlacesProvider ${line} ## : Tried to log something, but it was undefined or null.\n\n`);
-  } else if (typeof msg === 'string') {
-    dump(`\n\n## PlacesProvider ${line} ## : ${msg}\n\n`);
-  } else if (typeof msg === 'object') {
-    dump(`\n\n## PlacesProvider ${line} ## : {\n`);
-    for (let key in msg) {
-      const val = msg[key];
-      dump(`  ${key}: ${val}\n`);
-    }
-    dump('}\n\n');
-  }
-}
-
 this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
 const INBOUND_MESSAGE = "PlacesProvider";
@@ -291,8 +276,6 @@ Places.prototype = {
     Cc["@mozilla.org/globalmessagemanager;1"]
       .getService(Ci.nsIMessageListenerManager)
       .addMessageListener(INBOUND_MESSAGE, this);
-
-    out(288, 'initialized')
   },
 
   destroy: function () {
@@ -312,8 +295,6 @@ Places.prototype = {
     if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
       id =  msg.data.id;
     }
-    out(66, `Replying to message ${id}`);
-    out(67, `${msg}`);
     return [OUTBOUND_MESSAGE, {
       type,
       data,
@@ -322,8 +303,6 @@ Places.prototype = {
   },
 
   receiveMessage: function (msg) {
-    out(76, 'GOT MESSAGE');
-    out(77, msg.data);
     const {type} = msg.data;
     const sites = [{
       frecency: 200,
@@ -337,16 +316,13 @@ Places.prototype = {
         // this._reply(msg, 'GetFrecentSites', sites);
         gLinks.getLinks()
           .then(links => this._reply(msg, 'GetFrecentSites',  links || []))
-          .catch(e => out(339, e));
+          .catch(e => this._reply(e, 'GetFrecentSites'));
         break;
       default:
-        out(82, `Message ${type} not recognized`);
         break;
     }
   }
 };
-
-
 
 this.PlacesProvider = {
   LinkChecker: LinkChecker,
