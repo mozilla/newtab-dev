@@ -2,6 +2,7 @@
 interface MozNewTab {
   readonly attribute MozNewTabPrefProvider prefs;
   readonly attribute MozContentSearch search;
+  readonly attribute MozPlacesProvider places;
   Promise<Blob> capturePageThumb(DOMString url);
 };
 
@@ -110,3 +111,7 @@ enum SearchSelectionKind {
   "mouse", "key"
 };
 
+[JSImplementation="@mozilla.org/MozPlacesProvider;1", ChromeConstructor]
+interface MozPlacesProvider : EventTarget {
+  Promise<object?> getFrecentSites();
+};

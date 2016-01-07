@@ -726,7 +726,6 @@ this.RemoteNewTabUtils = {
 
   init: function RemoteNewTabUtils_init() {
     if (this.initWithoutProviders()) {
-      PlacesProvider.init();
       Links.addProvider(PlacesProvider);
     }
   },

@@ -10,9 +10,13 @@
 
 this.EXPORTED_SYMBOLS = ["PlacesProvider"];
 
-const {interfaces: Ci, utils: Cu} = Components;
+const INBOUND_MESSAGE = "PlacesProvider";
+const OUTBOUND_MESSAGE = INBOUND_MESSAGE;
+
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "BinarySearch",
   "resource://gre/modules/BinarySearch.jsm");
@@ -264,8 +268,65 @@ Links.prototype = {
  */
 const gLinks = new Links(); // jshint ignore:line
 
-let PlacesProvider = {
+function Places () {}
+
+Places.prototype = {
+
+  init: function () {
+    Cc["@mozilla.org/globalmessagemanager;1"]
+      .getService(Ci.nsIMessageListenerManager)
+      .addMessageListener(INBOUND_MESSAGE, this);
+  },
+
+  destroy: function () {
+    Cc["@mozilla.org/globalmessagemanager;1"]
+      .getService(Ci.nsIMessageListenerManager)
+      .removeMessageListener(INBOUND_MESSAGE, this);
+  },
+
+  _reply: function (msg, type, data) {
+    if (msg.target.messageManager) {
+      msg.target.messageManager.sendAsyncMessage(...this._msgArgs(msg, type, data));
+    }
+  },
+
+  _msgArgs: function (msg, type, data) {
+    let id = null;
+    if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
+      id =  msg.data.id;
+    }
+    return [OUTBOUND_MESSAGE, {
+      type,
+      data,
+      id,
+    }];
+  },
+
+  receiveMessage: function (msg) {
+    const {type} = msg.data;
+    const sites = [{
+      frecency: 200,
+      url: 'https://mozilla.com',
+      title: 'Mozilla',
+      type: 'history',
+      lastVisitDate: 1450201129309672
+    }];
+    switch(type) {
+      case 'GetFrecentSites':
+        // this._reply(msg, 'GetFrecentSites', sites);
+        gLinks.getLinks()
+          .then(links => this._reply(msg, 'GetFrecentSites',  links || []))
+          .catch(e => this._reply(e, 'GetFrecentSites'));
+        break;
+      default:
+        break;
+    }
+  }
+};
+
+this.PlacesProvider = {
   LinkChecker: LinkChecker,
   LinkUtils: LinkUtils,
   links: gLinks,
+  places: new Places()
 };
