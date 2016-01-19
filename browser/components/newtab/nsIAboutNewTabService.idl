@@ -9,7 +9,7 @@
  * than the one specified within AboutRedirector.cpp
  */
 
-[scriptable, uuid(cef25b06-0ef6-4c50-a243-e69f943ef23d)]
+[scriptable, uuid(9ec717d8-1561-4977-ae54-a225281a753f)]
 interface nsIAboutNewTabService : nsISupports
 {
   /**
@@ -17,6 +17,11 @@ interface nsIAboutNewTabService : nsISupports
    * otherwise a string represenation of the new URL.
    */
   attribute ACString newTabURL;
+
+  /**
+   * Returns the default URL (remote or local depending on pref)
+   */
+  attribute ACString defaultURL;
 
   /**
    * Returns true if the default resource got overridden.

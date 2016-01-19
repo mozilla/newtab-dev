@@ -48,18 +48,21 @@ function AboutNewTabService() {
 
 AboutNewTabService.prototype = {
 
-  _newTabURL: LOCAL_NEWTAB_URL,
+  _newTabURL: "about:newtab",
   _remoteEnabled: false,
+  _remoteURL: null,
   _overridden: false,
 
-  classID: Components.ID("{cef25b06-0ef6-4c50-a243-e69f943ef23d}"),
+  classID: Components.ID("{9ec717d8-1561-4977-ae54-a225281a753f}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutNewTabService]),
   _xpcom_categories: [{
     service: true
   }],
 
   _handleToggleEvent(prefName, stateEnabled, forceState) { //jshint unused:false
-    this.toggleRemote(stateEnabled, forceState);
+    if (this.toggleRemote(stateEnabled, forceState)) {
+      Services.obs.notifyObservers(null, "newtab-url-changed", "about:newtab");
+    }
   },
 
   /**
@@ -79,7 +82,7 @@ AboutNewTabService.prototype = {
     }
 
     if (stateEnabled) {
-      this._newTabURL = this.generateRemoteURL();
+      this._remoteURL = this.generateRemoteURL();
       NewTabPrefsProvider.prefs.on(
         PREF_SELECTED_LOCALE,
         this._updateRemoteMaybe.bind(this));
@@ -88,11 +91,11 @@ AboutNewTabService.prototype = {
         this._updateRemoteMaybe.bind(this));
       this._remoteEnabled = true;
     } else {
-      this._newTabURL = LOCAL_NEWTAB_URL;
       NewTabPrefsProvider.prefs.off(PREF_SELECTED_LOCALE, this._updateRemoteMaybe);
       NewTabPrefsProvider.prefs.off(PREF_MATCH_OS_LOCALE, this._updateRemoteMaybe);
       this._remoteEnabled = false;
     }
+    this._newTabURL = "about:newtab";
     return true;
   },
 
@@ -109,6 +112,16 @@ AboutNewTabService.prototype = {
   },
 
   /*
+   * Returns the default URL (remote or local depending on pref)
+   */
+  get defaultURL() {
+    if (this._remoteEnabled) {
+      return this._remoteURL;
+    }
+    return LOCAL_NEWTAB_URL;
+  },
+
+  /*
    * Updates the remote location when the page is not overriden.
    *
    * Useful when there is a dependent pref change
@@ -119,10 +132,10 @@ AboutNewTabService.prototype = {
     }
 
     let url = this.generateRemoteURL();
-    if (url !== this._newTabURL) {
-      this._newTabURL = url;
+    if (url !== this._remoteURL) {
+      this._remoteURL = url;
       Services.obs.notifyObservers(null, "newtab-url-changed",
-        this._newTabURL);
+        this._remoteURL);
     }
   },
 
@@ -148,10 +161,13 @@ AboutNewTabService.prototype = {
   },
 
   set newTabURL(aNewTabURL) {
+    aNewTabURL = aNewTabURL.trim();
     if (aNewTabURL === "about:newtab") {
       // avoid infinite redirects in case one sets the URL to about:newtab
       this.resetNewTabURL();
       return;
+    } else if (aNewTabURL === "") {
+      aNewTabURL = "about:blank";
     }
     let remoteURL = this.generateRemoteURL();
     let prefRemoteEnabled = Services.prefs.getBoolPref(PREF_REMOTE_ENABLED);
@@ -182,6 +198,7 @@ AboutNewTabService.prototype = {
 
   resetNewTabURL() {
     this._overridden = false;
+    this._newTabURL = "about:newtab";
     this.toggleRemote(Services.prefs.getBoolPref(PREF_REMOTE_ENABLED), true);
     Services.obs.notifyObservers(null, "newtab-url-changed", this._newTabURL);
   }
