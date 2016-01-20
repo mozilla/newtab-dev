@@ -17,6 +17,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
+Cu.import('resource://gre/modules/AppConstants.jsm');
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
@@ -606,9 +607,12 @@ var DirectoryLinksProvider = {
     }
 
     // Package the data to be sent with the ping
-    let ping = this._newXHR();
-    ping.open("POST", pingEndPoint + (action == "view" ? "view" : "click"));
-    ping.send(JSON.stringify(data));
+    // Prevent data collection from release builds, i.e. Beta and Release
+    if(!AppConstants.RELEASE_BUILD) {
+      let ping = this._newXHR();
+      ping.open("POST", pingEndPoint + (action == "view" ? "view" : "click"));
+      ping.send(JSON.stringify(data));
+    }
 
     return Task.spawn(function* () {
       // since we updated views/clicks we need write _frequencyCaps to disk
