@@ -20,7 +20,10 @@ const gPrefsMap = new Map([
   ["browser.newtabpage.remote", "bool"],
   ["browser.newtabpage.enabled", "bool"],
   ["browser.newtabpage.enhanced", "bool"],
+  ["browser.newtabpage.introShown", "bool"],
+  ["browser.newtabpage.updateIntroShown", "bool"],
   ["browser.newtabpage.pinned", "str"],
+  ["browser.newtabpage.blocked", "str"],
   ["intl.locale.matchOS", "bool"],
   ["general.useragent.locale", "localized"],
 ]);
@@ -56,6 +59,17 @@ PrefsProvider.prototype = {
     } else {
       Cu.reportError(new Error("NewTabPrefsProvider observing unknown topic"));
     }
+  },
+
+  get newtabPagePrefs() {
+    return {
+      enabled: Preferences.get("browser.newtabpage.enabled"),
+      enhanced: Preferences.get("browser.newtabpage.enhanced"),
+      pinned: Preferences.get("browser.newtabpage.pinned"),
+      blocked: Preferences.get("browser.newtabpage.blocked"),
+      introShown: Preferences.get("browser.newtabpage.introShown"),
+      updateIntroShown: Preferences.get("browser.newtabpage.updateIntroShown")
+    };
   },
 
   get prefsMap() {
