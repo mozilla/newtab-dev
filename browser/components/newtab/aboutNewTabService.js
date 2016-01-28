@@ -23,7 +23,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Locale",
 
 const LOCAL_NEWTAB_URL = "chrome://browser/content/newtab/newTab.xhtml";
 
-const REMOTE_NEWTAB_URL = "https://newtab.cdn.mozilla.net/" +
+const REMOTE_NEWTAB_URL = "https://content.cdn.mozilla.net/" +
                               "v%VERSION%/%CHANNEL%/%LOCALE%/index.html";
 
 const ABOUT_URL = "about:newtab";

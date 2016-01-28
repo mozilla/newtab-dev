@@ -28,6 +28,16 @@ const gPrefsMap = new Map([
   ["general.useragent.locale", "localized"],
 ]);
 
+// prefs that are important for the newtab page
+const gNewtabPagePrefs = new Set([
+  "browser.newtabpage.enabled",
+  "browser.newtabpage.enhanced",
+  "browser.newtabpage.pinned",
+  "browser.newtabpage.blocked",
+  "browser.newtabpage.introShown",
+  "browser.newtabpage.updateIntroShown"
+]);
+
 let PrefsProvider = function PrefsProvider() {
   EventEmitter.decorate(this);
 };
@@ -61,15 +71,15 @@ PrefsProvider.prototype = {
     }
   },
 
+  /*
+   * Return the preferences that are important to the newtab page
+   */
   get newtabPagePrefs() {
-    return {
-      enabled: Preferences.get("browser.newtabpage.enabled"),
-      enhanced: Preferences.get("browser.newtabpage.enhanced"),
-      pinned: Preferences.get("browser.newtabpage.pinned"),
-      blocked: Preferences.get("browser.newtabpage.blocked"),
-      introShown: Preferences.get("browser.newtabpage.introShown"),
-      updateIntroShown: Preferences.get("browser.newtabpage.updateIntroShown")
-    };
+    let results = {};
+    for (let pref of gNewtabPagePrefs) {
+      results[pref] = Preferences.get(pref, null);
+    }
+    return results;
   },
 
   get prefsMap() {
@@ -96,4 +106,5 @@ const gPrefs = new PrefsProvider();
 
 let NewTabPrefsProvider = {
   prefs: gPrefs,
+  newtabPagePrefSet: gNewtabPagePrefs,
 };
