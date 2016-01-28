@@ -1353,7 +1353,7 @@ pref("browser.newtabpage.directory.ping", "https://tiles.services.mozilla.com/v3
 pref("browser.newtabpage.remote", false);
 
 // Toggles endpoints allowed for remote newtab communications
-pref("browser.newtabpage.remote.mode", "remote");
+pref("browser.newtabpage.remote.mode", "production");
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);

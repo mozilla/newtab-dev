@@ -28,6 +28,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
                                   "resource:///modules/NewTabPrefsProvider.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabWebChannel",
+                                  "resource:///modules/NewTabWebChannel.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "UITour",
                                   "resource:///modules/UITour.jsm");
 
@@ -761,6 +764,7 @@ BrowserGlue.prototype = {
     AboutNewTab.init();
 
     NewTabPrefsProvider.prefs.init();
+    NewTabWebChannel.init();
 
     SessionStore.init();
     BrowserUITelemetry.init();
@@ -1081,6 +1085,8 @@ BrowserGlue.prototype = {
     WebappManager.uninit();
 
     NewTabPrefsProvider.prefs.uninit();
+    NewTabWebChannel.uninit();
+
     AboutNewTab.uninit();
     if (AppConstants.NIGHTLY_BUILD) {
       if (Services.prefs.getBoolPref("dom.identity.enabled")) {
