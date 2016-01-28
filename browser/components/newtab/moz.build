@@ -11,6 +11,7 @@ XPCSHELL_TESTS_MANIFESTS += [
 ]
 
 EXTRA_JS_MODULES += [
+    'NewTabMessages.jsm',
     'NewTabPrefsProvider.jsm',
     'NewTabURL.jsm',
     'NewTabWebChannel.jsm',
