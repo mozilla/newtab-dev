@@ -296,7 +296,7 @@ this.ContentSearch = {
     }
   }),
 
-  _onMessageGetState: function (msg) {
+  _onMessageGetState (msg) {
     let state = this._currentStateObj;
     this._reply(msg, "State", state);
   },
@@ -516,7 +516,7 @@ this.ContentSearch = {
       broadcastAsyncMessage(...this._msgArgs(type, data));
   },
 
-  _msgArgs: function (type, data, msg) {
+  _msgArgs (type, data, msg) {
     let id = null;
     if(msg && typeof msg.data === "object" && msg.data.hasOwnProperty("id")){
       id =  msg.data.id;

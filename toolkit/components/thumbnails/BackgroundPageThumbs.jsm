@@ -40,7 +40,8 @@ XPCOMUtils.defineConstant(this, "TEL_CAPTURE_DONE_BAD_URI", TEL_CAPTURE_DONE_BAD
 const global = this;
 
 const BackgroundPageThumbs = {
-
+  _captureQueue: [],
+  _capturesByURL: new Map(),
   /**
    * Asynchronously captures a thumbnail of the given URL.
    *
@@ -51,50 +52,44 @@ const BackgroundPageThumbs = {
    *                 properties are the following, and all are optional:
    * @opt onDone     A function that will be asynchronously called when the
    *                 capture is complete or times out.  It's called as
-   *                   onDone(url),
-   *                 where `url` is the captured URL.
+   *                 onDone(url), where `url` is the captured URL.
+   *                 It defaults to a no-op.
    * @opt timeout    The capture will time out after this many milliseconds have
    *                 elapsed after the capture has progressed to the head of
    *                 the queue and started.  Defaults to 30000 (30 seconds).
+   * @returns {Promise} Resolves with the URL of the captured image.
    */
-  capture: function (url, options={}) {
-    let promise;
-    // If we have a callback, wrap it.
-    if(options.hasOwnProperty(options, "onDone")){
-      promise = new Promise((resolve) => {
-        let done = options.onDone;
-        options.onDone = (url) => {
-          resolve(url);
-          promise.then(done);
-        };
-      });
-    // Otherwise, resolve the promise when done.
-    } else {
-      promise = new Promise((resolve)=>{
-        options.onDone = resolve;
-      });
-    }
-    if (!PageThumbs._prefEnabled()) {
-      return schedule(() => options.onDone(url));
-    }
-    this._captureQueue = this._captureQueue || [];
-    this._capturesByURL = this._capturesByURL || new Map();
-
-    tel("QUEUE_SIZE_ON_CAPTURE", this._captureQueue.length);
-
-    // We want to avoid duplicate captures for the same URL.  If there is an
-    // existing one, we just add the callback to that one and we are done.
-    let existing = this._capturesByURL.get(url)
-    if (existing) {
-      // The queue is already being processed, so nothing else to do...
-      existing.doneCallbacks.push(options.onDone);
-    } else{
+  capture(url, options = {onDone: ()=>{}}) {
+    return new Promise((resolve) => {
+      let done = options.onDone;
+      // Provides backwards compat with callback model.
+      options.onDone = (url) => {
+        resolve(url);
+        done(url);
+      };
+      if (!PageThumbs._prefEnabled()) {
+        return schedule(() => options.onDone(url));
+      }
+      tel("QUEUE_SIZE_ON_CAPTURE", this._captureQueue.length);
+      // We want to avoid duplicate captures for the same URL.  If there is an
+      // existing one, we just add the callback to that one and we are done.
+      if (this._capturesByURL.has(url)) {
+        // The queue is already being processed, so nothing else to do...
+        this._capturesByURL
+          .get(url)
+          .doneCallbacks
+          .push(options.onDone);
+        return;
+      }
+      dump(`
+        ==========================
+        doing capture of ${url}
+      `)
       let cap = new Capture(url, this._onCaptureOrTimeout.bind(this), options);
       this._captureQueue.push(cap);
       this._capturesByURL.set(url, cap);
       this._processCaptureQueue();
-    }
-    return promise;
+    });
   },
 
   /**
@@ -110,7 +105,7 @@ const BackgroundPageThumbs = {
     // The fileExistsForURL call is an optimization, potentially but unlikely
     // incorrect, and no big deal when it is.  After the capture is done, we
     // atomically test whether the file exists before writing it.
-    let exists;
+    let exists = false;
     try{
       yield PageThumbsStorage.ensurePath();
       exists = yield PageThumbsStorage.fileExistsForURL(url);
@@ -124,7 +119,7 @@ const BackgroundPageThumbs = {
       return url;
     }
     try{
-      this.capture(url, options);
+      yield this.capture(url, options);
     } catch (err) {
       options.onDone(url);
       throw err;

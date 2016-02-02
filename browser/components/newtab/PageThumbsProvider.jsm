@@ -61,9 +61,8 @@ const PageThumbsProvider = {
         canvas.toBlob(resolve);
       };
       img.onerror = (e) => {
-        out("FUCK!");
         dumpObj(e);
-        reject(new Error("Falied to load PageThumb"));
+        reject(new Error("Failed to load PageThumb"));
       }
       out("Trying to load image now..." + imgSrc);
       img.src = imgSrc;
@@ -85,7 +84,7 @@ const PageThumbsProvider = {
     case "CaptureIfMissing":
       Task.spawn(function* () {
         const {url} = msg.data;
-        yield BackgroundPageThumbs.captureIfMissing(url);
+        const result = yield BackgroundPageThumbs.captureIfMissing(url);
         const imgSrc = PageThumbs.getThumbnailURL(url);
         const blob = yield this._convertToBlob(imgSrc);
         this._reply(msg, blob);

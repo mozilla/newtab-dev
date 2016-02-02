@@ -30,7 +30,6 @@ const THUMBNAIL_DIRECTORY = "thumbnails";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/PromiseWorker.jsm", this);
-Cu.import("resource://gre/modules/Promise.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
@@ -82,22 +81,20 @@ const TaskUtils = {
    * @reject {DOMError} In case of error, the underlying DOMError.
    */
   readBlob: function readBlob(blob) {
-    let deferred = Promise.defer();
-    let reader = Cc["@mozilla.org/files/filereader;1"].createInstance(Ci.nsIDOMFileReader);
-    reader.onloadend = function onloadend() {
-      if (reader.readyState != Ci.nsIDOMFileReader.DONE) {
-        deferred.reject(reader.error);
-      } else {
-        deferred.resolve(reader.result);
-      }
-    };
-    reader.readAsArrayBuffer(blob);
-    return deferred.promise;
-  }
+    let reader = Cc["@mozilla.org/files/filereader;1"]
+        .createInstance(Ci.nsIDOMFileReader);
+    return new Promise((resolve, reject) => {
+      reader.onloadend = () => {
+        if (reader.readyState === Ci.nsIDOMFileReader.DONE){
+          resolve(reader.result);
+          return;
+        }
+        reject(reader.error);
+      };
+      reader.readAsArrayBuffer(blob);
+    });
+  },
 };
-
-
-
 
 /**
  * Singleton providing functionality for capturing web page thumbnails and for
@@ -124,13 +121,6 @@ this.PageThumbs = {
    */
   get staticHost() {
     return "thumbnail";
-  },
-
-  /**
-   * The thumbnails' image type.
-   */
-  get contentType() {
-    return "image/png";
   },
 
   init: function PageThumbs_init() {
@@ -186,17 +176,14 @@ this.PageThumbs = {
     if (!this._prefEnabled()) {
       return null;
     }
-
-    let deferred = Promise.defer();
-
     let canvas = this.createCanvas(aBrowser.contentWindow);
-    this.captureToCanvas(aBrowser, canvas, () => {
-      canvas.toBlob(blob => {
-        deferred.resolve(blob, this.contentType);
+    return new Promise((resolve) => {
+      this.captureToCanvas(aBrowser, canvas, () => {
+        canvas.toBlob(blob => {
+          resolve(blob, "image/png");
+        });
       });
     });
-
-    return deferred.promise;
   },
 
   /**
@@ -286,55 +273,53 @@ this.PageThumbs = {
    * @return a promise
    */
   _captureRemoteThumbnail: function (aBrowser, aCanvas) {
-    let deferred = Promise.defer();
+    return new Promise((resolve) => {
 
-    // The index we send with the request so we can identify the
-    // correct response.
-    let index = gRemoteThumbId++;
 
-    // Thumbnail request response handler
-    let mm = aBrowser.messageManager;
+      // The index we send with the request so we can identify the
+      // correct response.
+      let index = gRemoteThumbId++;
 
-    // Browser:Thumbnail:Response handler
-    let thumbFunc = function (aMsg) {
-      // Ignore events unrelated to our request
-      if (aMsg.data.id != index) {
-        return;
+      // Thumbnail request response handler
+      let mm = aBrowser.messageManager;
+
+      // Browser:Thumbnail:Response handler
+      let thumbFunc = function (aMsg) {
+        // Ignore events unrelated to our request
+        if (aMsg.data.id != index) {
+          return;
+        }
+
+        mm.removeMessageListener("Browser:Thumbnail:Response", thumbFunc);
+        let imageBlob = aMsg.data.thumbnail;
+        let doc = aBrowser.parentElement.ownerDocument;
+        let reader = Cc["@mozilla.org/files/filereader;1"].
+                     createInstance(Ci.nsIDOMFileReader);
+        reader.addEventListener("loadend", function() {
+          let image = doc.createElementNS(PageThumbUtils.HTML_NAMESPACE, "img");
+          image.onload = function () {
+            let thumbnail = doc.createElementNS(PageThumbUtils.HTML_NAMESPACE, "canvas");
+            thumbnail.width = image.naturalWidth;
+            thumbnail.height = image.naturalHeight;
+            let ctx = thumbnail.getContext("2d");
+            ctx.drawImage(image, 0, 0);
+            resolve({thumbnail});
+          }
+          image.src = reader.result;
+        });
+        // xxx wish there was a way to skip this encoding step
+        reader.readAsDataURL(imageBlob);
       }
 
-      mm.removeMessageListener("Browser:Thumbnail:Response", thumbFunc);
-      let imageBlob = aMsg.data.thumbnail;
-      let doc = aBrowser.parentElement.ownerDocument;
-      let reader = Cc["@mozilla.org/files/filereader;1"].
-                   createInstance(Ci.nsIDOMFileReader);
-      reader.addEventListener("loadend", function() {
-        let image = doc.createElementNS(PageThumbUtils.HTML_NAMESPACE, "img");
-        image.onload = function () {
-          let thumbnail = doc.createElementNS(PageThumbUtils.HTML_NAMESPACE, "canvas");
-          thumbnail.width = image.naturalWidth;
-          thumbnail.height = image.naturalHeight;
-          let ctx = thumbnail.getContext("2d");
-          ctx.drawImage(image, 0, 0);
-          deferred.resolve({
-            thumbnail: thumbnail
-          });
-        }
-        image.src = reader.result;
+      // Send a thumbnail request
+      mm.addMessageListener("Browser:Thumbnail:Response", thumbFunc);
+      mm.sendAsyncMessage("Browser:Thumbnail:Request", {
+        canvasWidth: aCanvas.width,
+        canvasHeight: aCanvas.height,
+        background: PageThumbUtils.THUMBNAIL_BG_COLOR,
+        id: index
       });
-      // xxx wish there was a way to skip this encoding step
-      reader.readAsDataURL(imageBlob);
-    }
-
-    // Send a thumbnail request
-    mm.addMessageListener("Browser:Thumbnail:Response", thumbFunc);
-    mm.sendAsyncMessage("Browser:Thumbnail:Request", {
-      canvasWidth: aCanvas.width,
-      canvasHeight: aCanvas.height,
-      background: PageThumbUtils.THUMBNAIL_BG_COLOR,
-      id: index
     });
-
-    return deferred.promise;
   },
 
   /**
