@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/* globals XPCOMUtils, Services, Task, Promise, SearchSuggestionController, FormHistory, PrivateBrowsingUtils */
 "use strict";
 
 this.EXPORTED_SYMBOLS = [
@@ -73,10 +73,10 @@ const MAX_SUGGESTIONS = 6;
  *     data: see _currentEngineObj
  *   CurrentState
  *     Broadcast when the current search state changes.
- *     data: see _currentStateObj
+ *     data: see currentStateObj
  *   State
  *     Sent in reply to GetState.
- *     data: see _currentStateObj
+ *     data: see currentStateObj
  *   Strings
  *     Sent in reply to GetStrings
  *     data: Object containing string names and values for the current locale.
@@ -126,9 +126,9 @@ this.ContentSearch = {
     let searchBundle = Services.strings.createBundle("chrome://browser/locale/search.properties");
     let stringNames = ["searchHeader", "searchPlaceholder", "searchForSomethingWith",
                        "searchWithHeader", "searchSettings"];
-    for (let name of stringNames) {
-      this._searchSuggestionUIStrings[name] = searchBundle.GetStringFromName(name);
-    }
+    stringNames
+      .map(name => [name, searchBundle.GetStringFromName(name)])
+      .forEach(([name, value]) => this._searchSuggestionUIStrings[name] = value);
     return this._searchSuggestionUIStrings;
   },
 
@@ -144,7 +144,8 @@ this.ContentSearch = {
     Services.obs.removeObserver(this, "shutdown-leaks-before-check");
 
     this._eventQueue.length = 0;
-    return this._destroyedPromise = Promise.resolve(this._currentEventPromise);
+    this._destroyedPromise = Promise.resolve(this._currentEventPromise);
+    return this._destroyedPromise;
   },
 
   /**
@@ -177,7 +178,7 @@ this.ContentSearch = {
 
     // Search requests cause cancellation of all Suggestion requests from the
     // same browser.
-    if (msg.data.type == "Search") {
+    if (msg.data.type === "Search") {
       this._cancelSuggestions(msg);
     }
 
@@ -227,14 +228,14 @@ this.ContentSearch = {
   _cancelSuggestions: function (msg) {
     let cancelled = false;
     // cancel active suggestion request
-    if (this._currentSuggestion && this._currentSuggestion.target == msg.target) {
+    if (this._currentSuggestion && this._currentSuggestion.target === msg.target) {
       this._currentSuggestion.controller.stop();
       cancelled = true;
     }
     // cancel queued suggestion requests
     for (let i = 0; i < this._eventQueue.length; i++) {
       let m = this._eventQueue[i].data;
-      if (msg.target == m.target && m.data.type == "GetSuggestions") {
+      if (msg.target === m.target && m.data.type === "GetSuggestions") {
         this._eventQueue.splice(i, 1);
         cancelled = true;
         i--;
@@ -255,7 +256,7 @@ this.ContentSearch = {
   }),
 
   _onMessageGetState: function (msg, data) {
-    return this._currentStateObj().then(state => {
+    return this.currentStateObj().then(state => {
       this._reply(msg, "State", state);
     });
   },
@@ -290,9 +291,9 @@ this.ContentSearch = {
     // There is a chance that by the time we receive the search message, the user
     // has switched away from the tab that triggered the search. If, based on the
     // event, we need to load the search in the same tab that triggered it (i.e.
-    // where == "current"), openUILinkIn will not work because that tab is no
+    // where === "current"), openUILinkIn will not work because that tab is no
     // longer the current one. For this case we manually load the URI.
-    if (where == "current") {
+    if (where === "current") {
       browser.loadURIWithFlags(submission.uri.spec,
                                Ci.nsIWebNavigation.LOAD_FLAGS_NONE, null, null,
                                submission.postData);
@@ -318,6 +319,46 @@ this.ContentSearch = {
     browserWin.openPreferences("paneSearch");
     return Promise.resolve();
   },
+
+  getSuggestions: Task.async(function* (engineName, searchString, browser, remoteTimeout=null) {
+    let engine = Services.search.getEngineByName(engineName);
+    if (!engine) {
+      throw new Error("Unknown engine name: " + engineName);
+    }
+
+    let browserData = this._suggestionDataForBrowser(browser, true);
+    let { controller } = browserData;
+    let ok = SearchSuggestionController.engineOffersSuggestions(engine);
+    controller.maxLocalResults = ok ? MAX_LOCAL_SUGGESTIONS : MAX_SUGGESTIONS;
+    controller.maxRemoteResults = ok ? MAX_SUGGESTIONS : 0;
+    controller.remoteTimeout = remoteTimeout || undefined;
+    let priv = PrivateBrowsingUtils.isBrowserPrivate(browser.browser);
+    // fetch() rejects its promise if there's a pending request, but since we
+    // process our event queue serially, there's never a pending request.
+    this._currentSuggestion = { controller: controller, target: browser };
+    let suggestions = yield controller.fetch(searchString, priv, engine);
+    this._currentSuggestion = null;
+
+    // suggestions will be null if the request was cancelled
+    if (!suggestions) {
+      return;
+    }
+
+    // Keep the form history result so RemoveFormHistoryEntry can remove entries
+    // from it.  Keeping only one result isn't foolproof because the client may
+    // try to remove an entry from one set of suggestions after it has requested
+    // more but before it's received them.  In that case, the entry may not
+    // appear in the new suggestions.  But that should happen rarely.
+    browserData.previousFormHistoryResult = suggestions.formHistoryResult;
+    let result = {
+      engineName,
+      searchString: suggestions.term,
+      formHistory: suggestions.local,
+      remote: suggestions.remote,
+    };
+    return result;
+  }),
+
 
   _onMessageGetSuggestions: Task.async(function* (msg, data) {
     this._ensureDataHasProperties(data, [
@@ -393,7 +434,7 @@ this.ContentSearch = {
     if (browserData && browserData.previousFormHistoryResult) {
       let { previousFormHistoryResult } = browserData;
       for (let i = 0; i < previousFormHistoryResult.matchCount; i++) {
-        if (previousFormHistoryResult.getValueAt(i) == entry) {
+        if (previousFormHistoryResult.getValueAt(i) === entry) {
           previousFormHistoryResult.removeValueAt(i, true);
           break;
         }
@@ -415,14 +456,14 @@ this.ContentSearch = {
   },
 
   _onObserve: Task.async(function* (data) {
-    if (data == "engine-current") {
+    if (data === "engine-current") {
       let engine = yield this._currentEngineObj();
       this._broadcast("CurrentEngine", engine);
     }
-    else if (data != "engine-default") {
+    else if (data !== "engine-default") {
       // engine-default is always sent with engine-current and isn't otherwise
       // relevant to content searches.
-      let state = yield this._currentStateObj();
+      let state = yield this.currentStateObj();
       this._broadcast("CurrentState", state);
     }
   }),
@@ -462,7 +503,7 @@ this.ContentSearch = {
     }];
   },
 
-  _currentStateObj: Task.async(function* () {
+  currentStateObj: Task.async(function* () {
     let state = {
       engines: [],
       currentEngine: yield this._currentEngineObj(),
@@ -470,7 +511,7 @@ this.ContentSearch = {
     let pref = Services.prefs.getCharPref("browser.search.hiddenOneOffs");
     let hiddenList = pref ? pref.split(",") : [];
     for (let engine of Services.search.getVisibleEngines()) {
-      if (hiddenList.indexOf(engine.name) != -1) {
+      if (hiddenList.indexOf(engine.name) !== -1) {
         continue;
       }
       let uri = engine.getIconURLBySize(16, 16);
