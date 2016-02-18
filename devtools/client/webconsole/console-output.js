@@ -1,4 +1,5 @@
-/* vim: set ts=2 et sw=2 tw=80: */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* vim: set ft= javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,11 +12,11 @@ const { Services } = require("resource://gre/modules/Services.jsm");
 
 loader.lazyImporter(this, "VariablesView", "resource://devtools/client/shared/widgets/VariablesView.jsm");
 loader.lazyImporter(this, "escapeHTML", "resource://devtools/client/shared/widgets/VariablesView.jsm");
-loader.lazyImporter(this, "gDevTools", "resource://devtools/client/framework/gDevTools.jsm");
 loader.lazyImporter(this, "Task", "resource://gre/modules/Task.jsm");
 loader.lazyImporter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
 
 loader.lazyRequireGetter(this, "promise");
+loader.lazyRequireGetter(this, "gDevTools", "devtools/client/framework/devtools", true);
 loader.lazyRequireGetter(this, "TableWidget", "devtools/client/shared/widgets/TableWidget", true);
 loader.lazyRequireGetter(this, "ObjectClient", "devtools/shared/client/main", true);
 
@@ -26,7 +27,7 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const STRINGS_URI = "chrome://devtools/locale/webconsole.properties";
 
 const WebConsoleUtils = require("devtools/shared/webconsole/utils").Utils;
-const l10n = new WebConsoleUtils.l10n(STRINGS_URI);
+const l10n = new WebConsoleUtils.L10n(STRINGS_URI);
 
 const MAX_STRING_GRIP_LENGTH = 36;
 const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
@@ -1088,7 +1089,7 @@ Messages.Extended = function(messagePieces, options = {})
   }
 
   this._repeatID.quoteStrings = this._quoteStrings;
-  this._repeatID.messagePieces = messagePieces + "";
+  this._repeatID.messagePieces = JSON.stringify(messagePieces);
   this._repeatID.actors = new Set(); // using a set to avoid duplicates
 };
 

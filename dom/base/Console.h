@@ -26,6 +26,9 @@ namespace mozilla {
 namespace dom {
 
 class ConsoleCallData;
+class ConsoleRunnable;
+class ConsoleCallDataRunnable;
+class ConsoleProfileRunnable;
 struct ConsoleStackEntry;
 
 class Console final : public nsIObserver
@@ -39,10 +42,10 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(Console, nsIObserver)
   NS_DECL_NSIOBSERVER
 
-  explicit Console(nsPIDOMWindow* aWindow);
+  explicit Console(nsPIDOMWindowInner* aWindow);
 
   // WebIDL methods
-  nsISupports* GetParentObject() const
+  nsPIDOMWindowInner* GetParentObject() const
   {
     return mWindow;
   }
@@ -141,7 +144,9 @@ private:
          const Sequence<JS::Value>& aData);
 
   void
-  ProcessCallData(ConsoleCallData* aData);
+  ProcessCallData(ConsoleCallData* aData,
+                  JS::Handle<JSObject*> aGlobal,
+                  const Sequence<JS::Value>& aArguments);
 
   // If the first JS::Value of the array is a string, this method uses it to
   // format a string. The supported sequences are:
@@ -162,53 +167,146 @@ private:
   // of elements that need the custom styling from aSequence. For elements with
   // no custom styling the array is padded with null elements.
   bool
-  ProcessArguments(JSContext* aCx, const nsTArray<JS::Heap<JS::Value>>& aData,
+  ProcessArguments(JSContext* aCx, const Sequence<JS::Value>& aData,
                    Sequence<JS::Value>& aSequence,
-                   Sequence<JS::Value>& aStyles);
+                   Sequence<nsString>& aStyles) const;
 
   void
   MakeFormatString(nsCString& aFormat, int32_t aInteger, int32_t aMantissa,
-                   char aCh);
+                   char aCh) const;
 
   // Stringify and Concat all the JS::Value in a single string using ' ' as
   // separator.
   void
-  ComposeGroupName(JSContext* aCx, const nsTArray<JS::Heap<JS::Value>>& aData,
-                   nsAString& aName);
+  ComposeGroupName(JSContext* aCx, const Sequence<JS::Value>& aData,
+                   nsAString& aName) const;
 
-  JS::Value
+  // StartTimer is called on the owning thread and populates aTimerLabel and
+  // aTimerValue. It returns false if a JS exception is thrown or if
+  // the max number of timers is reached.
+  // * aCx - the JSContext rooting aName.
+  // * aName - this is (should be) the name of the timer as JS::Value.
+  // * aTimestamp - the monotonicTimer for this context (taken from
+  //                window->performance.now() or from Now() -
+  //                workerPrivate->NowBaseTimeStamp() in workers.
+  // * aTimerLabel - This label will be populated with the aName converted to a
+  //                 string.
+  // * aTimerValue - the StartTimer value stored into (or taken from)
+  //                 mTimerRegistry.
+  bool
   StartTimer(JSContext* aCx, const JS::Value& aName,
-             DOMHighResTimeStamp aTimestamp);
+             DOMHighResTimeStamp aTimestamp,
+             nsAString& aTimerLabel,
+             DOMHighResTimeStamp* aTimerValue);
 
+  // CreateStartTimerValue is called on the main thread only and generates a
+  // ConsoleTimerStart dictionary exposed as JS::Value. If aTimerStatus is
+  // false, it generates a ConsoleTimerError instead. It's called only after
+  // the execution StartTimer on the owning thread.
+  // * aCx - this is the context that will root the returned value.
+  // * aTimerLabel - this label must be what StartTimer received as aTimerLabel.
+  // * aTimerValue - this is what StartTimer received as aTimerValue
+  // * aTimerStatus - the return value of StartTimer.
   JS::Value
+  CreateStartTimerValue(JSContext* aCx, const nsAString& aTimerLabel,
+                        DOMHighResTimeStamp aTimerValue,
+                        bool aTimerStatus) const;
+
+  // StopTimer follows the same pattern as StartTimer: it runs on the
+  // owning thread and populates aTimerLabel and aTimerDuration, used by
+  // CreateStopTimerValue on the main thread. It returns false if a JS
+  // exception is thrown or if the aName timer doesn't exist in mTimerRegistry.
+  // * aCx - the JSContext rooting aName.
+  // * aName - this is (should be) the name of the timer as JS::Value.
+  // * aTimestamp - the monotonicTimer for this context (taken from
+  //                window->performance.now() or from Now() -
+  //                workerPrivate->NowBaseTimeStamp() in workers.
+  // * aTimerLabel - This label will be populated with the aName converted to a
+  //                 string.
+  // * aTimerDuration - the difference between aTimestamp and when the timer
+  //                    started (see StartTimer).
+  bool
   StopTimer(JSContext* aCx, const JS::Value& aName,
-            DOMHighResTimeStamp aTimestamp);
+            DOMHighResTimeStamp aTimestamp,
+            nsAString& aTimerLabel,
+            double* aTimerDuration);
+
+  // Executed on the main thread and generates a ConsoleTimerEnd dictionary
+  // exposed as JS::Value, or a ConsoleTimerError dictionary if aTimerStatus is
+  // false. See StopTimer.
+  // * aCx - this is the context that will root the returned value.
+  // * aTimerLabel - this label must be what StopTimer received as aTimerLabel.
+  // * aTimerDuration - this is what StopTimer received as aTimerDuration
+  // * aTimerStatus - the return value of StopTimer.
+  JS::Value
+  CreateStopTimerValue(JSContext* aCx, const nsAString& aTimerLabel,
+                       double aTimerDuration,
+                       bool aTimerStatus) const;
 
   // The method populates a Sequence from an array of JS::Value.
   bool
-  ArgumentsToValueList(const nsTArray<JS::Heap<JS::Value>>& aData,
-                       Sequence<JS::Value>& aSequence);
+  ArgumentsToValueList(const Sequence<JS::Value>& aData,
+                       Sequence<JS::Value>& aSequence) const;
 
   void
   ProfileMethod(JSContext* aCx, const nsAString& aAction,
                 const Sequence<JS::Value>& aData);
 
-  JS::Value
+  // This method follows the same pattern as StartTimer: its runs on the owning
+  // thread and populates aCountLabel, used by CreateCounterValue on the
+  // main thread. Returns MAX_PAGE_COUNTERS in case of error otherwise the
+  // incremented counter value.
+  // * aCx - the JSContext rooting aData.
+  // * aFrame - the first frame of ConsoleCallData.
+  // * aData - the arguments received by the console.count() method.
+  // * aCountLabel - the label that will be populated by this method.
+  uint32_t
   IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
-                   const nsTArray<JS::Heap<JS::Value>>& aArguments);
+                  const Sequence<JS::Value>& aData,
+                  nsAString& aCountLabel);
+
+  // Executed on the main thread and generates a ConsoleCounter dictionary as
+  // JS::Value. If aCountValue is == MAX_PAGE_COUNTERS it generates a
+  // ConsoleCounterError instead. See IncreaseCounter.
+  // * aCx - this is the context that will root the returned value.
+  // * aCountLabel - this label must be what IncreaseCounter received as
+  //                 aTimerLabel.
+  // * aCountValue - the return value of IncreaseCounter.
+  JS::Value
+  CreateCounterValue(JSContext* aCx, const nsAString& aCountLabel,
+                     uint32_t aCountValue) const;
 
   bool
-  ShouldIncludeStackTrace(MethodName aMethodName);
+  ShouldIncludeStackTrace(MethodName aMethodName) const;
 
   JSObject*
   GetOrCreateSandbox(JSContext* aCx, nsIPrincipal* aPrincipal);
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  void
+  RegisterConsoleCallData(ConsoleCallData* aData);
+
+  void
+  UnregisterConsoleCallData(ConsoleCallData* aData);
+
+  void
+  AssertIsOnOwningThread() const;
+
+  // All these nsCOMPtr are touched on main thread only.
+  nsCOMPtr<nsPIDOMWindowInner> mWindow;
   nsCOMPtr<nsIConsoleAPIStorage> mStorage;
   RefPtr<JSObjectHolder> mSandbox;
 
+  // Touched on the owner thread.
   nsDataHashtable<nsStringHashKey, DOMHighResTimeStamp> mTimerRegistry;
   nsDataHashtable<nsStringHashKey, uint32_t> mCounterRegistry;
+
+  // Raw pointers because ConsoleCallData manages its own
+  // registration/unregistration.
+  nsTArray<ConsoleCallData*> mConsoleCallDataArray;
+
+#ifdef DEBUG
+  PRThread* mOwningThread;
+#endif
 
   uint64_t mOuterID;
   uint64_t mInnerID;

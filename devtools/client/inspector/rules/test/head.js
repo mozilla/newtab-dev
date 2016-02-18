@@ -48,11 +48,11 @@ addTab = function(url) {
  * view is visible and ready
  */
 function openRuleView() {
-  return openInspectorSidebarTab("ruleview").then(objects => {
+  return openInspectorSidebarTab("ruleview").then(({toolbox, inspector}) => {
     return {
-      toolbox: objects.toolbox,
-      inspector: objects.inspector,
-      view: objects.view.view
+      toolbox,
+      inspector,
+      view: inspector.ruleview.view
     };
   });
 }
@@ -289,7 +289,7 @@ function assertHoverTooltipOn(tooltip, element) {
  * @param {Tooltip} tooltip
  * @param {CSSRuleView} view
  */
-function* hideTooltipAndWaitForRuleviewChanged(tooltip, view) {
+function* hideTooltipAndWaitForRuleViewChanged(tooltip, view) {
   let onModified = view.once("ruleview-changed");
   tooltip.hide();
   yield onModified;

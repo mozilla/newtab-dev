@@ -695,7 +695,8 @@ nsPluginStreamListenerPeer::RequestRead(NPByteRange* rangeList)
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
                        loadGroup,
-                       callbacks);
+                       callbacks,
+                       nsIChannel::LOAD_BYPASS_SERVICE_WORKER);
   }
   else {
     // in this else branch we really don't know where the load is coming
@@ -709,7 +710,8 @@ nsPluginStreamListenerPeer::RequestRead(NPByteRange* rangeList)
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
                        loadGroup,
-                       callbacks);
+                       callbacks,
+                       nsIChannel::LOAD_BYPASS_SERVICE_WORKER);
   }
 
   if (NS_FAILED(rv))
@@ -1236,8 +1238,7 @@ nsPluginStreamListenerPeer::GetInterfaceGlobal(const nsIID& aIID, void** result)
     nsCOMPtr<nsIDocument> doc;
     nsresult rv = owner->GetDocument(getter_AddRefs(doc));
     if (NS_SUCCEEDED(rv) && doc) {
-      nsPIDOMWindow *window = doc->GetWindow();
-      if (window) {
+      if  (nsPIDOMWindowOuter *window = doc->GetWindow()) {
         nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(window);
         nsCOMPtr<nsIInterfaceRequestor> ir = do_QueryInterface(webNav);
         return ir->GetInterface(aIID, result);

@@ -821,6 +821,7 @@ public class GeckoAppShell
     // This is the entry point from nsIShellService.
     @WrapForJNI
     public static void createShortcut(final String aTitle, final String aURI) {
+        ThreadUtils.assertOnBackgroundThread();
         final BrowserDB db = GeckoProfile.get(getApplicationContext()).getDB();
 
         final ContentResolver cr = getContext().getContentResolver();
@@ -840,32 +841,19 @@ public class GeckoAppShell
         OnFaviconLoadedListener listener = new OnFaviconLoadedListener() {
             @Override
             public void onFaviconLoaded(String url, String faviconURL, Bitmap favicon) {
-                createShortcutWithBitmap(aTitle, url, favicon);
+                doCreateShortcut(aTitle, url, favicon);
             }
         };
 
-        if (touchIconURL != null) {
-            // We have the favicon data (base64) decoded on the background thread, callback here, then
-            // call the other createShortcut method with the decoded favicon.
-            // This is slightly contrived, but makes the images available to the favicon cache.
-            Favicons.getSizedFavicon(getApplicationContext(), aURI, touchIconURL, Integer.MAX_VALUE, 0, listener);
-        } else {
-            Favicons.getPreferredSizeFaviconForPage(getApplicationContext(), aURI, listener);
-        }
+        // Retrieve the icon while bypassing the cache. Homescreen icon creation is a one-off event, hence it isn't
+        // useful to cache these icons. (Android takes care of storing homescreen icons after a shortcut
+        // has been created.)
+        // The cache is also (currently) limited to 32dp, hence we explicitly need to avoid accessing those icons.
+        // If touchIconURL is null, then Favicons falls back to finding the best possible favicon for
+        // the site URI, hence we can use this call even when there is no touchIcon defined.
+        Favicons.getPreferredSizeFaviconForPage(getApplicationContext(), aURI, touchIconURL, listener);
     }
 
-    private static void createShortcutWithBitmap(final String aTitle, final String aURI, final Bitmap aBitmap) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                doCreateShortcut(aTitle, aURI, aBitmap);
-            }
-        });
-    }
-
-    /**
-     * Call this method only on the background thread.
-     */
     private static void doCreateShortcut(final String aTitle, final String aURI, final Bitmap aIcon) {
         // The intent to be launched by the shortcut.
         Intent shortcutIntent = new Intent();

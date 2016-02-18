@@ -3484,6 +3484,9 @@ shutdown:
     if (name) {
 	PL_strfree(name);
     }
+    if (newName) {
+	PL_strfree(newName);
+    }
     if (inFile && inFile != PR_STDIN) {
 	PR_Close(inFile);
     }
@@ -3495,6 +3498,9 @@ shutdown:
     if (pwdata.data && pwdata.source == PW_PLAINTEXT) {
 	/* Allocated by a PL_strdup call in SECU_GetModulePassword. */
 	PL_strfree(pwdata.data);
+    }
+    if (email) {
+	PL_strfree(email);
     }
 
     /* Open the batch command file.

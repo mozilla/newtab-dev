@@ -1058,6 +1058,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Compartment destroy callback. */
     JSDestroyCompartmentCallback destroyCompartmentCallback;
 
+    /* Compartment memory reporting callback. */
+    JSSizeOfIncludingThisCompartmentCallback sizeOfIncludingThisCompartmentCallback;
+
     /* Zone destroy callback. */
     JSZoneCallback destroyZoneCallback;
 
@@ -1092,7 +1095,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Garbage collector state has been successfully initialized. */
     bool                gcInitialized;
 
-    int gcZeal() { return gc.zeal(); }
+    bool hasZealMode(js::gc::ZealMode mode) { return gc.hasZealMode(mode); }
 
     void lockGC() {
         assertCanLock(js::GCLock);

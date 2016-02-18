@@ -68,12 +68,11 @@ public class GeckoEvent {
     // Make sure to keep these values in sync with the enum in
     // AndroidGeckoEvent in widget/android/AndroidJavaWrappers.h
     @JNITarget
-    private enum NativeGeckoEvent {
+    public enum NativeGeckoEvent {
         NATIVE_POKE(0),
         MOTION_EVENT(2),
         SENSOR_EVENT(3),
         LOCATION_EVENT(5),
-        SIZE_CHANGED(8),
         APP_BACKGROUNDING(9),
         APP_FOREGROUNDING(10),
         LOAD_URI(12),
@@ -433,8 +432,11 @@ public class GeckoEvent {
             break;
 
         case Sensor.TYPE_ROTATION_VECTOR:
+        case Sensor.TYPE_GAME_ROTATION_VECTOR: // API >= 18
             event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_ROTATION_VECTOR;
+            event.mFlags = (sensor_type == Sensor.TYPE_ROTATION_VECTOR ?
+                    GeckoHalDefines.SENSOR_ROTATION_VECTOR :
+                    GeckoHalDefines.SENSOR_GAME_ROTATION_VECTOR);
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             event.mY = s.values[1];
@@ -449,17 +451,6 @@ public class GeckoEvent {
                 event.mW = (event.mW > 0.0) ? Math.sqrt(event.mW) : 0.0;
             }
             break;
-
-        // case Sensor.TYPE_GAME_ROTATION_VECTOR: // API >= 18
-        case 15:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_GAME_ROTATION_VECTOR;
-            event.mMetaState = HalSensorAccuracyFor(s.accuracy);
-            event.mX = s.values[0];
-            event.mY = s.values[1];
-            event.mZ = s.values[2];
-            event.mW = s.values[3];
-            break;
         }
         return event;
     }
@@ -467,14 +458,6 @@ public class GeckoEvent {
     public static GeckoEvent createLocationEvent(Location l) {
         GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LOCATION_EVENT);
         event.mLocation = l;
-        return event;
-    }
-
-    public static GeckoEvent createSizeChangedEvent(int w, int h, int screenw, int screenh) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.SIZE_CHANGED);
-        event.mPoints = new Point[2];
-        event.mPoints[0] = new Point(w, h);
-        event.mPoints[1] = new Point(screenw, screenh);
         return event;
     }
 

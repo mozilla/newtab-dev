@@ -66,7 +66,6 @@
 #include "nsIDOMWindow.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsIIOService2.h"
-#include "nsILocaleService.h"
 #include "nsIObserverService.h"
 #include "nsINativeAppSupport.h"
 #include "nsIProcess.h"
@@ -225,7 +224,7 @@ int    gArgc;
 char **gArgv;
 
 static const char gToolkitVersion[] = NS_STRINGIFY(GRE_MILESTONE);
-static const char gToolkitBuildID[] = NS_STRINGIFY(GRE_BUILDID);
+static const char gToolkitBuildID[] = NS_STRINGIFY(MOZ_BUILDID);
 
 static nsIProfileLock* gProfileLock;
 
@@ -254,6 +253,12 @@ static char **gQtOnlyArgv;
 #include <fontconfig/fontconfig.h>
 #endif
 #include "BinaryPath.h"
+#ifndef MOZ_BUILDID
+// See comment in Makefile.in why we want to avoid including buildid.h.
+// Still include it when MOZ_BUILDID is not set, which can happen with some
+// build backends.
+#include "buildid.h"
+#endif
 
 #ifdef MOZ_LINKER
 extern "C" MFBT_API bool IsSignalHandlingBroken();
@@ -688,51 +693,6 @@ SetUpSandboxEnvironment()
   }
 }
 
-#if defined(NIGHTLY_BUILD)
-static void
-CleanUpOldSandboxEnvironment()
-{
-  // Temporary code to clean up the old low integrity temp directories.
-  // The removal of this is tracked by bug 1165818.
-  nsCOMPtr<nsIFile> lowIntegrityMozilla;
-  nsresult rv = NS_GetSpecialDirectory(NS_WIN_LOW_INTEGRITY_TEMP_BASE,
-                              getter_AddRefs(lowIntegrityMozilla));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return;
-  }
-
-  nsCOMPtr<nsISimpleEnumerator> iter;
-  rv = lowIntegrityMozilla->GetDirectoryEntries(getter_AddRefs(iter));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return;
-  }
-
-  bool more;
-  nsCOMPtr<nsISupports> elem;
-  while (NS_SUCCEEDED(iter->HasMoreElements(&more)) && more) {
-    rv = iter->GetNext(getter_AddRefs(elem));
-    if (NS_FAILED(rv)) {
-      break;
-    }
-
-    nsCOMPtr<nsIFile> file = do_QueryInterface(elem);
-    if (!file) {
-      continue;
-    }
-
-    nsAutoString leafName;
-    rv = file->GetLeafName(leafName);
-    if (NS_FAILED(rv)) {
-      continue;
-    }
-
-    if (leafName.Find(NS_LITERAL_STRING("MozTemp-{")) == 0) {
-      file->Remove(/* aRecursive */ true);
-    }
-  }
-}
-#endif
-
 static void
 CleanUpSandboxEnvironment()
 {
@@ -740,10 +700,6 @@ CleanUpSandboxEnvironment()
   if (!IsVistaOrLater()) {
     return;
   }
-
-#if defined(NIGHTLY_BUILD)
-  CleanUpOldSandboxEnvironment();
-#endif
 
   // Get temp directory suffix pref.
   nsAdoptingString tempDirSuffix =
@@ -2168,7 +2124,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
         (do_GetService(NS_APPSTARTUP_CONTRACTID));
       NS_ENSURE_TRUE(appStartup, NS_ERROR_FAILURE);
 
-      nsCOMPtr<nsIDOMWindow> newWindow;
+      nsCOMPtr<mozIDOMWindowProxy> newWindow;
       rv = windowWatcher->OpenWindow(nullptr,
                                      kProfileManagerURL,
                                      "_blank",
@@ -4701,31 +4657,25 @@ mozilla::BrowserTabsRemoteAutostart()
    * which currently doesn't work well with e10s.
    */
   bool disabledForBidi = false;
-  do { // to allow 'break' to abort this block if a call fails
-    nsresult rv;
-    nsCOMPtr<nsILocaleService> ls =
-      do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv))
-      break;
 
-    nsCOMPtr<nsILocale> appLocale;
-    rv = ls->GetApplicationLocale(getter_AddRefs(appLocale));
-    if (NS_FAILED(rv))
-      break;
+  nsAutoCString locale;
+  nsCOMPtr<nsIXULChromeRegistry> registry =
+   mozilla::services::GetXULChromeRegistryService();
+  if (registry) {
+     registry->GetSelectedLocale(NS_LITERAL_CSTRING("global"), locale);
+  }
 
-    nsString localeStr;
-    rv = appLocale->
-      GetCategory(NS_LITERAL_STRING(NSILOCALE_MESSAGE), localeStr);
-    if (NS_FAILED(rv))
-      break;
+  int32_t index = locale.FindChar('-');
+  if (index >= 0) {
+    locale.Truncate(index);
+  }
 
-    if (localeStr.EqualsLiteral("ar") ||
-        localeStr.EqualsLiteral("fa") ||
-        localeStr.EqualsLiteral("he") ||
-        localeStr.EqualsLiteral("ur")) {
-      disabledForBidi = true;
-    }
-  } while (0);
+  if (locale.EqualsLiteral("ar") ||
+      locale.EqualsLiteral("fa") ||
+      locale.EqualsLiteral("he") ||
+      locale.EqualsLiteral("ur")) {
+    disabledForBidi = true;
+  }
 
   bool optInPref = Preferences::GetBool("browser.tabs.remote.autostart", false);
   bool trialPref = Preferences::GetBool("browser.tabs.remote.autostart.2", false);
@@ -4739,16 +4689,6 @@ mozilla::BrowserTabsRemoteAutostart()
     status = kE10sDisabledByUser;
   }
 
-#ifdef E10S_TESTING_ONLY
-  bool e10sAllowed = true;
-#else
-  // When running tests with 'layers.offmainthreadcomposition.testing.enabled', e10s must be
-  // allowed because these tests must be allowed to run remotely.
-  // We are also allowing e10s to be enabled on Beta (which doesn't have E10S_TESTING_ONLY defined.
-  bool e10sAllowed = !Preferences::GetDefaultCString("app.update.channel").EqualsLiteral("release") ||
-                     gfxPrefs::GetSingleton().LayersOffMainThreadCompositionTestingEnabled();
-#endif
-
   bool addonsCanDisable = Preferences::GetBool("extensions.e10sBlocksEnabling", false);
   bool disabledByAddons = Preferences::GetBool("extensions.e10sBlockedByAddons", false);
 
@@ -4758,7 +4698,7 @@ mozilla::BrowserTabsRemoteAutostart()
                                                       : NS_LITERAL_CSTRING("0"));
 #endif
 
-  if (e10sAllowed && prefEnabled) {
+  if (prefEnabled) {
     if (disabledForA11y) {
       status = kE10sDisabledForAccessibility;
     } else if (disabledForBidi) {
@@ -4824,6 +4764,9 @@ mozilla::BrowserTabsRemoteAutostart()
   if (prefEnabled) {
     mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_BLOCKED_FROM_RUNNING,
                                     !gBrowserTabsRemoteAutostart);
+  }
+  if (Preferences::HasUserValue("extensions.e10sBlockedByAddons")) {
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_ADDONS_BLOCKER_RAN, true);
   }
   return gBrowserTabsRemoteAutostart;
 }

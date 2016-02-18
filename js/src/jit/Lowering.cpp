@@ -695,7 +695,7 @@ ReorderComparison(JSOp op, MDefinition** lhsp, MDefinition** rhsp)
     MDefinition* lhs = *lhsp;
     MDefinition* rhs = *rhsp;
 
-    if (lhs->isConstantValue()) {
+    if (lhs->maybeConstantValue()) {
         *rhsp = lhs;
         *lhsp = rhs;
         return ReverseCompareOp(op);
@@ -715,10 +715,12 @@ LIRGenerator::visitTest(MTest* test)
     MOZ_ASSERT(opd->type() != MIRType_String);
 
     // Testing a constant.
-    if (opd->isConstantValue() && !opd->constantValue().isMagic()) {
-        bool result = opd->constantToBoolean();
-        add(new(alloc()) LGoto(result ? ifTrue : ifFalse));
-        return;
+    if (MConstant* constant = opd->maybeConstantValue()) {
+        bool b;
+        if (constant->valueToBoolean(&b)) {
+            add(new(alloc()) LGoto(b ? ifTrue : ifFalse));
+            return;
+        }
     }
 
     if (opd->type() == MIRType_Value) {
@@ -1594,7 +1596,7 @@ LIRGenerator::visitMul(MMul* ins)
 
         // If our RHS is a constant -1 and we don't have to worry about
         // overflow, we can optimize to an LNegI.
-        if (!ins->fallible() && rhs->isConstantValue() && rhs->constantValue() == Int32Value(-1))
+        if (!ins->fallible() && rhs->isConstant() && rhs->toConstant()->toInt32() == -1)
             defineReuseInput(new(alloc()) LNegI(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerMulI(ins, lhs, rhs);
@@ -1603,7 +1605,7 @@ LIRGenerator::visitMul(MMul* ins)
         ReorderCommutative(&lhs, &rhs, ins);
 
         // If our RHS is a constant -1.0, we can optimize to an LNegD.
-        if (rhs->isConstantValue() && rhs->constantValue() == DoubleValue(-1.0))
+        if (rhs->isConstant() && rhs->toConstant()->toDouble() == -1.0)
             defineReuseInput(new(alloc()) LNegD(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathD(JSOP_MUL), ins, lhs, rhs);
@@ -1612,7 +1614,7 @@ LIRGenerator::visitMul(MMul* ins)
         ReorderCommutative(&lhs, &rhs, ins);
 
         // We apply the same optimizations as for doubles
-        if (rhs->isConstantValue() && rhs->constantValue() == Float32Value(-1.0f))
+        if (rhs->isConstant() && rhs->toConstant()->toFloat32() == -1.0f)
             defineReuseInput(new(alloc()) LNegF(useRegisterAtStart(lhs)), ins, 0);
         else
             lowerForFPU(new(alloc()) LMathF(JSOP_MUL), ins, lhs, rhs);
@@ -2365,10 +2367,7 @@ void
 LIRGenerator::visitAsmJSInterruptCheck(MAsmJSInterruptCheck* ins)
 {
     gen->setPerformsCall();
-
-    LAsmJSInterruptCheck* lir = new(alloc()) LAsmJSInterruptCheck(ins->interruptExit(),
-                                                                  ins->funcDesc());
-    add(lir, ins);
+    add(new(alloc()) LAsmJSInterruptCheck, ins);
 }
 
 void
@@ -2478,6 +2477,17 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes* ins)
     add(lir, ins);
 }
 
+// Returns true iff |def| is a constant that's either not a GC thing or is not
+// allocated in the nursery.
+static bool
+IsNonNurseryConstant(MDefinition* def)
+{
+    if (!def->isConstant())
+        return false;
+    Value v = def->toConstant()->toJSValue();
+    return !v.isMarkable() || !IsInsideNursery(v.toGCThing());
+}
+
 void
 LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier* ins)
 {
@@ -2487,9 +2497,7 @@ LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier* ins)
     // object is tenured, and does not need to be tested for being in the
     // nursery. Ensure that assumption holds by lowering constant nursery
     // objects to a register.
-    bool useConstantObject =
-        ins->object()->isConstant() &&
-        !IsInsideNursery(&ins->object()->toConstant()->value().toObject());
+    bool useConstantObject = IsNonNurseryConstant(ins->object());
 
     switch (ins->value()->type()) {
       case MIRType_Object:
@@ -2512,6 +2520,55 @@ LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier* ins)
                                             : useRegister(ins->object()),
                                             tmp);
         useBox(lir, LPostWriteBarrierV::Input, ins->value());
+        add(lir, ins);
+        assignSafepoint(lir, ins);
+        break;
+      }
+      default:
+        // Currently, only objects can be in the nursery. Other instruction
+        // types cannot hold nursery pointers.
+        break;
+    }
+}
+
+void
+LIRGenerator::visitPostWriteElementBarrier(MPostWriteElementBarrier* ins)
+{
+    MOZ_ASSERT(ins->object()->type() == MIRType_Object);
+    MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
+
+    // LPostWriteElementBarrier assumes that if it has a constant object then that
+    // object is tenured, and does not need to be tested for being in the
+    // nursery. Ensure that assumption holds by lowering constant nursery
+    // objects to a register.
+    bool useConstantObject =
+        ins->object()->isConstant() &&
+        !IsInsideNursery(&ins->object()->toConstant()->toObject());
+
+    switch (ins->value()->type()) {
+      case MIRType_Object:
+      case MIRType_ObjectOrNull: {
+        LDefinition tmp = needTempForPostBarrier() ? temp() : LDefinition::BogusTemp();
+        LPostWriteElementBarrierO* lir =
+            new(alloc()) LPostWriteElementBarrierO(useConstantObject
+                                                   ? useOrConstant(ins->object())
+                                                   : useRegister(ins->object()),
+                                                   useRegister(ins->value()),
+                                                   useRegister(ins->index()),
+                                                   tmp);
+        add(lir, ins);
+        assignSafepoint(lir, ins);
+        break;
+      }
+      case MIRType_Value: {
+        LDefinition tmp = needTempForPostBarrier() ? temp() : LDefinition::BogusTemp();
+        LPostWriteElementBarrierV* lir =
+            new(alloc()) LPostWriteElementBarrierV(useConstantObject
+                                                   ? useOrConstant(ins->object())
+                                                   : useRegister(ins->object()),
+                                                   useRegister(ins->index()),
+                                                   tmp);
+        useBox(lir, LPostWriteElementBarrierV::Input, ins->value());
         add(lir, ins);
         assignSafepoint(lir, ins);
         break;
@@ -3595,6 +3652,7 @@ LIRGenerator::visitSetPropertyCache(MSetPropertyCache* ins)
     // If this is a SETPROP, the id is a constant string. Allow passing it as a
     // constant to reduce register allocation pressure.
     bool useConstId = id->type() == MIRType_String || id->type() == MIRType_Symbol;
+    bool useConstValue = IsNonNurseryConstant(ins->value());
 
     // Set the performs-call flag so that we don't omit the overrecursed check.
     // This is necessary because the cache can attach a scripted setter stub
@@ -3617,7 +3675,7 @@ LIRGenerator::visitSetPropertyCache(MSetPropertyCache* ins)
     LInstruction* lir = new(alloc()) LSetPropertyCache(useRegister(ins->object()), temp(),
                                                        tempToUnboxIndex, tempD, tempF32);
     useBoxOrTypedOrConstant(lir, LSetPropertyCache::Id, id, useConstId);
-    useBoxOrTypedOrConstant(lir, LSetPropertyCache::Value, ins->value(), /* useConstant = */ true);
+    useBoxOrTypedOrConstant(lir, LSetPropertyCache::Value, ins->value(), useConstValue);
 
     add(lir, ins);
     assignSafepoint(lir, ins);
@@ -4101,12 +4159,28 @@ LIRGenerator::visitSimdConvert(MSimdConvert* ins)
     LUse use = useRegister(input);
     if (ins->type() == MIRType_Int32x4) {
         MOZ_ASSERT(input->type() == MIRType_Float32x4);
-        LFloat32x4ToInt32x4* lir = new(alloc()) LFloat32x4ToInt32x4(use, temp());
-        if (!gen->compilingAsmJS())
-            assignSnapshot(lir, Bailout_BoundsCheck);
-        define(lir, ins);
+        switch (ins->signedness()) {
+          case SimdSign::Signed: {
+              LFloat32x4ToInt32x4* lir = new(alloc()) LFloat32x4ToInt32x4(use, temp());
+              if (!gen->compilingAsmJS())
+                  assignSnapshot(lir, Bailout_BoundsCheck);
+              define(lir, ins);
+              break;
+          }
+          case SimdSign::Unsigned: {
+              LFloat32x4ToUint32x4* lir =
+                new (alloc()) LFloat32x4ToUint32x4(use, temp(), temp(LDefinition::INT32X4));
+              if (!gen->compilingAsmJS())
+                  assignSnapshot(lir, Bailout_BoundsCheck);
+              define(lir, ins);
+              break;
+          }
+          default:
+            MOZ_CRASH("Unexpected SimdConvert sign");
+        }
     } else if (ins->type() == MIRType_Float32x4) {
         MOZ_ASSERT(input->type() == MIRType_Int32x4);
+        MOZ_ASSERT(ins->signedness() == SimdSign::Signed, "Unexpected SimdConvert sign");
         define(new(alloc()) LInt32x4ToFloat32x4(use), ins);
     } else {
         MOZ_CRASH("Unknown SIMD kind when generating constant");
@@ -4133,18 +4207,27 @@ LIRGenerator::visitSimdExtractElement(MSimdExtractElement* ins)
 
     switch (ins->input()->type()) {
       case MIRType_Int32x4: {
+        MOZ_ASSERT(ins->signedness() != SimdSign::NotApplicable);
         // Note: there could be int16x8 in the future, which doesn't use the
         // same instruction. We either need to pass the arity or create new LIns.
         LUse use = useRegisterAtStart(ins->input());
-        define(new(alloc()) LSimdExtractElementI(use), ins);
+        if (ins->type() == MIRType_Double) {
+            // Extract an Uint32 lane into a double.
+            MOZ_ASSERT(ins->signedness() == SimdSign::Unsigned);
+            define(new (alloc()) LSimdExtractElementU2D(use, temp()), ins);
+        } else {
+            define(new (alloc()) LSimdExtractElementI(use), ins);
+        }
         break;
       }
       case MIRType_Float32x4: {
+        MOZ_ASSERT(ins->signedness() == SimdSign::NotApplicable);
         LUse use = useRegisterAtStart(ins->input());
         define(new(alloc()) LSimdExtractElementF(use), ins);
         break;
       }
       case MIRType_Bool32x4: {
+        MOZ_ASSERT(ins->signedness() == SimdSign::NotApplicable);
         LUse use = useRegisterAtStart(ins->input());
         define(new(alloc()) LSimdExtractElementB(use), ins);
         break;
@@ -4294,9 +4377,11 @@ LIRGenerator::visitSimdBinaryComp(MSimdBinaryComp* ins)
         ins->reverse();
 
     if (ins->specialization() == MIRType_Int32x4) {
+        MOZ_ASSERT(ins->signedness() == SimdSign::Signed);
         LSimdBinaryCompIx4* add = new(alloc()) LSimdBinaryCompIx4();
         lowerForCompIx4(add, ins, ins->lhs(), ins->rhs());
     } else if (ins->specialization() == MIRType_Float32x4) {
+        MOZ_ASSERT(ins->signedness() == SimdSign::NotApplicable);
         LSimdBinaryCompFx4* add = new(alloc()) LSimdBinaryCompFx4();
         lowerForCompFx4(add, ins, ins->lhs(), ins->rhs());
     } else {

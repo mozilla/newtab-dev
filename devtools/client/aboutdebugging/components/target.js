@@ -17,8 +17,8 @@ loader.lazyRequireGetter(this, "Services");
 
 loader.lazyImporter(this, "BrowserToolboxProcess",
   "resource://devtools/client/framework/ToolboxProcess.jsm");
-loader.lazyImporter(this, "gDevTools",
-  "resource://devtools/client/framework/gDevTools.jsm");
+loader.lazyRequireGetter(this, "gDevTools",
+  "devtools/client/framework/devtools", true);
 
 const Strings = Services.strings.createBundle(
   "chrome://devtools/locale/aboutdebugging.properties");
@@ -54,6 +54,8 @@ exports.TargetComponent = React.createClass({
 
   render() {
     let target = this.props.target;
+    let debugDisabled = this.props.debugDisabled;
+
     return React.createElement("div", { className: "target" },
       React.createElement("img", {
         className: "target-icon",
@@ -62,8 +64,11 @@ exports.TargetComponent = React.createClass({
         React.createElement("div", { className: "target-name" }, target.name),
         React.createElement("div", { className: "target-url" }, target.url)
       ),
-      React.createElement("button", { onClick: this.debug },
-        Strings.GetStringFromName("debug"))
+      React.createElement("button", {
+        className: "debug-button",
+        onClick: this.debug,
+        disabled: debugDisabled,
+      }, Strings.GetStringFromName("debug"))
     );
   },
 });

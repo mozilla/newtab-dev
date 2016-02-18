@@ -28,7 +28,6 @@ config = {
         "virtualenv": [PYTHON_DIR + "/bin/python", "/tools/misc-python/virtualenv.py"],
     },
 
-    "purge_minsize": 18,
     "force_clobber": True,
     'vcs_share_base': HG_SHARE_BASE_DIR,
 
@@ -83,6 +82,8 @@ config = {
     ],
     "mock_files": [
         ("/home/cltbld/.ssh", "/home/mock_mozilla/.ssh"),
+        ('/home/cltbld/.hgrc', '/builds/.hgrc'),
+        ('/builds/relengapi.tok', '/builds/relengapi.tok'),
         ("/tools/tooltool.py", "/tools/tooltool.py"),
         ('/usr/local/lib/hgext', '/usr/local/lib/hgext'),
     ],

@@ -34,6 +34,7 @@ class DataTextureSourceBasic : public DataTextureSource
                              , public TextureSourceBasic
 {
 public:
+  virtual const char* Name() const override { return "DataTextureSourceBasic"; }
 
   virtual TextureSourceBasic* AsSourceBasic() override { return this; }
 
@@ -175,6 +176,11 @@ DrawSurfaceWithTextureCoords(DrawTarget *aDest,
                              SourceSurface *aMask,
                              const Matrix* aMaskTransform)
 {
+  if (!aSource) {
+    gfxWarning() << "DrawSurfaceWithTextureCoords problem " << gfx::hexa(aSource) << " and " << gfx::hexa(aMask);
+    return;
+  }
+
   // Convert aTextureCoords into aSource's coordinate space
   gfxRect sourceRect(aTextureCoords.x * aSource->GetSize().width,
                      aTextureCoords.y * aSource->GetSize().height,
@@ -396,6 +402,9 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
   if (aEffectChain.mSecondaryEffects[EffectTypes::MASK]) {
     EffectMask *effectMask = static_cast<EffectMask*>(aEffectChain.mSecondaryEffects[EffectTypes::MASK].get());
     sourceMask = effectMask->mMaskTexture->AsSourceBasic()->GetSurface(dest);
+    if (!sourceMask) {
+      gfxWarning() << "Invalid sourceMask effect";
+    }
     MOZ_ASSERT(effectMask->mMaskTransform.Is2D(), "How did we end up with a 3D transform here?!");
     MOZ_ASSERT(!effectMask->mIs3D);
     maskTransform = effectMask->mMaskTransform.As2D();
@@ -430,15 +439,17 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
           static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
       TextureSourceBasic* source = texturedEffect->mTexture->AsSourceBasic();
 
-      if (texturedEffect->mPremultiplied) {
+      if (source && texturedEffect->mPremultiplied) {
           DrawSurfaceWithTextureCoords(dest, aRect,
                                        source->GetSurface(dest),
                                        texturedEffect->mTextureCoords,
                                        texturedEffect->mFilter,
                                        DrawOptions(aOpacity, blendMode),
                                        sourceMask, &maskTransform);
-      } else {
-          RefPtr<DataSourceSurface> srcData = source->GetSurface(dest)->GetDataSurface();
+      } else if (source) {
+        SourceSurface* srcSurf = source->GetSurface(dest);
+        if (srcSurf) {
+          RefPtr<DataSourceSurface> srcData = srcSurf->GetDataSurface();
 
           // Yes, we re-create the premultiplied data every time.
           // This might be better with a cache, eventually.
@@ -450,7 +461,11 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
                                        texturedEffect->mFilter,
                                        DrawOptions(aOpacity, blendMode),
                                        sourceMask, &maskTransform);
+        }
+      } else {
+        gfxDevCrash(LogReason::IncompatibleBasicTexturedEffect) << "Bad for basic with " << texturedEffect->mTexture->Name() << " and " << gfx::hexa(sourceMask);
       }
+
       break;
     }
     case EffectTypes::YCBCR: {
@@ -549,6 +564,9 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
   } else {
     // StartRemoteDrawingInRegion can mutate mInvalidRegion.
     mDrawTarget = mWidget->StartRemoteDrawingInRegion(mInvalidRegion);
+    if (!mDrawTarget) {
+      return;
+    }
     mInvalidRect = mInvalidRegion.GetBounds();
     if (mInvalidRect.IsEmpty()) {
       mWidget->EndRemoteDrawingInRegion(mDrawTarget, mInvalidRegion);
@@ -623,11 +641,11 @@ BasicCompositor::EndFrame()
   // The source DrawTarget is clipped to the invalidation region, so we have
   // to copy the individual rectangles in the region or else we'll draw blank
   // pixels.
-  LayoutDeviceIntRegion::RectIterator iter(mInvalidRegion);
-  for (const LayoutDeviceIntRect *r = iter.Next(); r; r = iter.Next()) {
+  for (auto iter = mInvalidRegion.RectIter(); !iter.Done(); iter.Next()) {
+    const LayoutDeviceIntRect& r = iter.Get();
     dest->CopySurface(source,
-                      IntRect(r->x - mInvalidRect.x, r->y - mInvalidRect.y, r->width, r->height),
-                      IntPoint(r->x - offset.x, r->y - offset.y));
+                      IntRect(r.x - mInvalidRect.x, r.y - mInvalidRect.y, r.width, r.height),
+                      IntPoint(r.x - offset.x, r.y - offset.y));
   }
   if (!mTarget) {
     mWidget->EndRemoteDrawingInRegion(mDrawTarget, mInvalidRegion);

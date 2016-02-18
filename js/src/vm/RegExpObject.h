@@ -201,6 +201,7 @@ class RegExpShared
     }
 
     void trace(JSTracer* trc);
+    bool needsSweep(JSRuntime* rt);
 
     bool marked() const { return marked_; }
     void clearMarked() { marked_ = false; }
@@ -455,6 +456,8 @@ class RegExpObject : public NativeObject
     bool multiline() const  { return getFixedSlot(MULTILINE_FLAG_SLOT).toBoolean(); }
     bool sticky() const     { return getFixedSlot(STICKY_FLAG_SLOT).toBoolean(); }
     bool unicode() const    { return getFixedSlot(UNICODE_FLAG_SLOT).toBoolean(); }
+
+    static bool isOriginalFlagGetter(JSNative native, unsigned* slot);
 
     bool getShared(JSContext* cx, RegExpGuard* g);
 

@@ -20,6 +20,7 @@
 #define wasm_types_h
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/EnumeratedArray.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Move.h"
 
@@ -37,14 +38,17 @@ class PropertyName;
 
 namespace wasm {
 
+using mozilla::EnumeratedArray;
 using mozilla::Move;
 using mozilla::DebugOnly;
 using mozilla::MallocSizeOf;
 
+typedef Vector<uint32_t, 0, SystemAllocPolicy> Uint32Vector;
+
 // The ValType enum represents the WebAssembly "value type", which are used to
 // specify the type of locals and parameters.
 
-// FIXME: uint8_t would make more sense for the underlying storage class, but
+// FIXME: uint16_t would make more sense for the underlying storage class, but
 // causes miscompilations in GCC (fixed in 4.8.5 and 4.9.3).
 enum class ValType
 {
@@ -54,7 +58,9 @@ enum class ValType
     F64,
     I32x4,
     F32x4,
-    B32x4
+    B32x4,
+
+    Limit
 };
 
 typedef Vector<ValType, 8, SystemAllocPolicy> ValTypeVector;
@@ -76,6 +82,7 @@ ToMIRType(ValType vt)
       case ValType::I32x4: return jit::MIRType_Int32x4;
       case ValType::F32x4: return jit::MIRType_Float32x4;
       case ValType::B32x4: return jit::MIRType_Bool32x4;
+      case ValType::Limit: break;
     }
     MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad type");
 }
@@ -138,7 +145,7 @@ class Val
 // void represented by the empty list). For now it's easier to have a flat enum
 // and be explicit about conversions to/from value types.
 
-enum class ExprType : uint8_t
+enum class ExprType : uint16_t
 {
     I32 = uint8_t(ValType::I32),
     I64 = uint8_t(ValType::I64),
@@ -147,7 +154,9 @@ enum class ExprType : uint8_t
     I32x4 = uint8_t(ValType::I32x4),
     F32x4 = uint8_t(ValType::F32x4),
     B32x4 = uint8_t(ValType::B32x4),
-    Void
+    Void,
+
+    Limit
 };
 
 static inline bool
@@ -226,25 +235,21 @@ class Sig
     const ExprType& ret() const { return ret_; }
 
     HashNumber hash() const {
-        HashNumber hn = HashNumber(ret_);
-        for (unsigned i = 0; i < args_.length(); i++)
-            hn = mozilla::AddToHash(hn, HashNumber(args_[i]));
-        return hn;
+        return AddContainerToHash(args_, HashNumber(ret_));
     }
     bool operator==(const Sig& rhs) const {
-        if (ret() != rhs.ret())
-            return false;
-        if (args().length() != rhs.args().length())
-            return false;
-        for (unsigned i = 0; i < args().length(); i++) {
-            if (arg(i) != rhs.arg(i))
-                return false;
-        }
-        return true;
+        return ret() == rhs.ret() && EqualContainers(args(), rhs.args());
     }
     bool operator!=(const Sig& rhs) const {
         return !(*this == rhs);
     }
+};
+
+struct SigHashPolicy
+{
+    typedef const Sig& Lookup;
+    static HashNumber hash(Lookup sig) { return sig.hash(); }
+    static bool match(const Sig* lhs, Lookup rhs) { return *lhs == rhs; }
 };
 
 // A "declared" signature is a Sig object that is created and owned by the
@@ -269,7 +274,7 @@ typedef Vector<const DeclaredSig*, 0, SystemAllocPolicy> DeclaredSigPtrVector;
 
 struct Offsets
 {
-    MOZ_IMPLICIT Offsets(uint32_t begin = 0, uint32_t end = 0)
+    explicit Offsets(uint32_t begin = 0, uint32_t end = 0)
       : begin(begin), end(end)
     {}
 
@@ -342,8 +347,7 @@ struct FuncOffsets : ProfilingOffsets
 
 class CallSiteDesc
 {
-    uint32_t line_;
-    uint32_t column_ : 31;
+    uint32_t lineOrBytecode_ : 31;
     uint32_t kind_ : 1;
   public:
     enum Kind {
@@ -352,15 +356,14 @@ class CallSiteDesc
     };
     CallSiteDesc() {}
     explicit CallSiteDesc(Kind kind)
-      : line_(0), column_(0), kind_(kind)
+      : lineOrBytecode_(0), kind_(kind)
     {}
-    CallSiteDesc(uint32_t line, uint32_t column, Kind kind)
-      : line_(line), column_(column), kind_(kind)
+    CallSiteDesc(uint32_t lineOrBytecode, Kind kind)
+      : lineOrBytecode_(lineOrBytecode), kind_(kind)
     {
-        MOZ_ASSERT(column_ == column, "column must fit in 31 bits");
+        MOZ_ASSERT(lineOrBytecode_ == lineOrBytecode, "must fit in 31 bits");
     }
-    uint32_t line() const { return line_; }
-    uint32_t column() const { return column_; }
+    uint32_t lineOrBytecode() const { return lineOrBytecode_; }
     Kind kind() const { return Kind(kind_); }
 };
 
@@ -550,6 +553,7 @@ enum class SymbolicAddress
     ReportOverRecursed,
     OnOutOfBounds,
     OnImpreciseConversion,
+    BadIndirectCall,
     HandleExecutionInterrupt,
     InvokeImport_Void,
     InvokeImport_I32,
@@ -561,6 +565,23 @@ enum class SymbolicAddress
 
 void*
 AddressOf(SymbolicAddress imm, ExclusiveContext* cx);
+
+// A wasm::JumpTarget represents one of a special set of stubs that can be
+// jumped to from any function. Because wasm modules can be larger than the
+// range of a plain jump, these potentially out-of-range jumps must be recorded
+// and patched specially by the MacroAssembler and ModuleGenerator.
+
+enum class JumpTarget
+{
+    StackOverflow,
+    OutOfBounds,
+    ConversionError,
+    BadIndirectCall,
+    Throw,
+    Limit
+};
+
+typedef EnumeratedArray<JumpTarget, JumpTarget::Limit, Uint32Vector> JumpSiteArray;
 
 // The CompileArgs struct captures global parameters that affect all wasm code
 // generation. It also currently is the single source of truth for whether or
@@ -575,6 +596,14 @@ struct CompileArgs
     explicit CompileArgs(ExclusiveContext* cx);
     bool operator==(CompileArgs rhs) const;
     bool operator!=(CompileArgs rhs) const { return !(*this == rhs); }
+};
+
+// A Module can either be asm.js or wasm.
+
+enum ModuleKind
+{
+    Wasm,
+    AsmJS
 };
 
 // Constants:

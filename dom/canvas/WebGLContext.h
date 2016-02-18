@@ -827,7 +827,8 @@ protected:
 public:
     void Disable(GLenum cap);
     void Enable(GLenum cap);
-    bool GetStencilBits(GLint* out_stencilBits);
+    bool GetStencilBits(GLint* const out_stencilBits);
+    bool GetChannelBits(const char* funcName, GLenum pname, GLint* const out_val);
     virtual JS::Value GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv);
 
     void GetParameter(JSContext* cx, GLenum pname,
@@ -1113,7 +1114,6 @@ protected:
     int32_t mGLMaxVertexUniformVectors;
     uint32_t  mGLMaxTransformFeedbackSeparateAttribs;
     GLuint  mGLMaxUniformBufferBindings;
-    GLsizei mGLMaxSamples;
 
     // What is supported:
     uint32_t mGLMaxColorAttachments;

@@ -99,6 +99,7 @@ nsShmImage::Create(const LayoutDeviceIntSize& aSize,
             (shm->mImage->green_mask == 0xff00) &&
             (shm->mImage->blue_mask == 0xff)) {
             shm->mFormat = SurfaceFormat::B8G8R8A8;
+            memset(shm->mSegment->memory(), 0, size);
             break;
         }
         goto unsupported;
@@ -108,11 +109,13 @@ nsShmImage::Create(const LayoutDeviceIntSize& aSize,
             (shm->mImage->green_mask == 0xff00) &&
             (shm->mImage->blue_mask == 0xff)) {
             shm->mFormat = SurfaceFormat::B8G8R8X8;
+            memset(shm->mSegment->memory(), 0xFF, size);
             break;
         }
         goto unsupported;
     case 16:
         shm->mFormat = SurfaceFormat::R5G6B5_UINT16;
+        memset(shm->mSegment->memory(), 0, size);
         break;
     unsupported:
     default:
@@ -142,12 +145,12 @@ nsShmImage::Put(Display* aDisplay, Drawable aWindow,
     LayoutDeviceIntRegion bounded;
     bounded.And(aRegion,
                 LayoutDeviceIntRect(0, 0, mImage->width, mImage->height));
-    LayoutDeviceIntRegion::RectIterator iter(bounded);
-    for (const LayoutDeviceIntRect *r = iter.Next(); r; r = iter.Next()) {
+    for (auto iter = bounded.RectIter(); !iter.Done(); iter.Next()) {
+        const LayoutDeviceIntRect& r = iter.Get();
         XShmPutImage(aDisplay, aWindow, gc, mImage,
-                     r->x, r->y,
-                     r->x, r->y,
-                     r->width, r->height,
+                     r.x, r.y,
+                     r.x, r.y,
+                     r.width, r.height,
                      False);
     }
 

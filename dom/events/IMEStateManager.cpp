@@ -584,7 +584,7 @@ IMEStateManager::OnMouseButtonEventInEditor(nsPresContext* aPresContext,
   }
 
   WidgetMouseEvent* internalEvent =
-    aMouseEvent->AsEvent()->GetInternalNSEvent()->AsMouseEvent();
+    aMouseEvent->AsEvent()->WidgetEventPtr()->AsMouseEvent();
   if (NS_WARN_IF(!internalEvent)) {
     MOZ_LOG(sISMLog, LogLevel::Debug,
       ("ISM:   IMEStateManager::OnMouseButtonEventInEditor(), "
@@ -1034,7 +1034,8 @@ IMEStateManager::SetIMEState(const IMEState& aState,
       context.mHTMLInputType.Assign(nsGkAtoms::textarea->GetUTF16String());
     }
 
-    if (Preferences::GetBool("dom.forms.inputmode", false)) {
+    if (Preferences::GetBool("dom.forms.inputmode", false) ||
+        nsContentUtils::IsChromeDoc(aContent->OwnerDoc())) {
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
                         context.mHTMLInputInputmode);
     }

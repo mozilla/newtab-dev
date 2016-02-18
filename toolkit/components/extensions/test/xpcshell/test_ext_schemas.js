@@ -9,6 +9,13 @@ let json = [
    properties: {
      PROP1: {value: 20},
      prop2: {type: "string"},
+     prop3: {
+       $ref: "submodule",
+     },
+     prop4: {
+       $ref: "submodule",
+       unsupported: true,
+     },
    },
 
    types: [
@@ -25,6 +32,47 @@ let json = [
          prop1: {type: "integer"},
          prop2: {type: "array", items: {"$ref": "type1"}},
        },
+     },
+
+     {
+       id: "basetype1",
+       type: "object",
+       properties: {
+         prop1: {type: "string"},
+       },
+     },
+
+     {
+       id: "basetype2",
+       choices: [
+         {type: "integer"},
+       ],
+     },
+
+     {
+       $extend: "basetype1",
+       properties: {
+         prop2: {type: "string"},
+       },
+     },
+
+     {
+       $extend: "basetype2",
+       choices: [
+         {type: "string"},
+       ],
+     },
+
+     {
+       id: "submodule",
+       type: "object",
+       functions: [
+         {
+           name: "sub_foo",
+           type: "function",
+           parameters: [],
+         },
+       ],
      },
    ],
 
@@ -126,6 +174,95 @@ let json = [
          {name: "xyz", type: "object", additionalProperties: {type: "any"}},
        ],
      },
+
+     {
+       name: "patternprop",
+       type: "function",
+       parameters: [
+         {
+           name: "obj",
+           type: "object",
+           properties: {"prop1": {type: "string", pattern: "^\\d+$"}},
+           patternProperties: {
+             "(?i)^prop\\d+$": {type: "string"},
+             "^foo\\d+$": {type: "string"},
+           },
+         },
+       ],
+     },
+
+     {
+       name: "pattern",
+       type: "function",
+       parameters: [
+         {name: "arg", type: "string", pattern: "(?i)^[0-9a-f]+$"},
+       ],
+     },
+
+     {
+       name: "format",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           type: "object",
+           properties: {
+             url: {type: "string", "format": "url", "optional": true},
+             relativeUrl: {type: "string", "format": "relativeUrl", "optional": true},
+             strictRelativeUrl: {type: "string", "format": "strictRelativeUrl", "optional": true},
+           },
+         },
+       ],
+     },
+
+     {
+       name: "deep",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           type: "object",
+           properties: {
+             foo: {
+               type: "object",
+               properties: {
+                 bar: {
+                   type: "array",
+                   items: {
+                     type: "object",
+                     properties: {
+                       baz: {
+                         type: "object",
+                         properties: {
+                           required: {type: "integer"},
+                           optional: {type: "string", optional: true},
+                         },
+                       },
+                     },
+                   },
+                 },
+               },
+             },
+           },
+         },
+       ],
+     },
+
+     {
+       name: "extended1",
+       type: "function",
+       parameters: [
+         {name: "val", $ref: "basetype1"},
+       ],
+     },
+
+     {
+       name: "extended2",
+       type: "function",
+       parameters: [
+         {name: "val", $ref: "basetype2"},
+       ],
+     },
    ],
 
    events: [
@@ -157,18 +294,54 @@ function verify(...args) {
   tallied = null;
 }
 
+let talliedErrors = [];
+
+function checkErrors(errors) {
+  do_check_eq(talliedErrors.length, errors.length, "Got expected number of errors");
+  for (let [i, error] of errors.entries()) {
+    do_check_true(i in talliedErrors && talliedErrors[i].includes(error),
+                  `${JSON.stringify(error)} is a substring of error ${JSON.stringify(talliedErrors[i])}`);
+  }
+
+  talliedErrors.length = 0;
+}
+
 let wrapper = {
-  callFunction(ns, name, args) {
+  url: "moz-extension://b66e3509-cdb3-44f6-8eb8-c8b39b3a1d27/",
+
+  checkLoadURL(url) {
+    return !url.startsWith("chrome:");
+  },
+
+  logError(message) {
+    talliedErrors.push(message);
+  },
+
+  callFunction(path, name, args) {
+    let ns = path.join(".");
     tally("call", ns, name, args);
   },
 
-  addListener(ns, name, listener, args) {
+  getProperty(path, name) {
+    let ns = path.join(".");
+    tally("get", ns, name);
+  },
+
+  setProperty(path, name, value) {
+    let ns = path.join(".");
+    tally("set", ns, name, value);
+  },
+
+  addListener(path, name, listener, args) {
+    let ns = path.join(".");
     tally("addListener", ns, name, [listener, args]);
   },
-  removeListener(ns, name, listener) {
+  removeListener(path, name, listener) {
+    let ns = path.join(".");
     tally("removeListener", ns, name, [listener]);
   },
-  hasListener(ns, name, listener) {
+  hasListener(path, name, listener) {
+    let ns = path.join(".");
     tally("hasListener", ns, name, [listener]);
   },
 };
@@ -211,28 +384,28 @@ add_task(function* () {
   root.testing.bar(true);
   verify("call", "testing", "bar", [null, true]);
 
-  root.testing.baz({ prop1: "hello", prop2: 22 });
-  verify("call", "testing", "baz", [{ prop1: "hello", prop2: 22 }]);
+  root.testing.baz({prop1: "hello", prop2: 22});
+  verify("call", "testing", "baz", [{prop1: "hello", prop2: 22}]);
 
-  root.testing.baz({ prop1: "hello" });
-  verify("call", "testing", "baz", [{ prop1: "hello", prop2: null }]);
+  root.testing.baz({prop1: "hello"});
+  verify("call", "testing", "baz", [{prop1: "hello", prop2: null}]);
 
-  root.testing.baz({ prop1: "hello", prop2: null });
-  verify("call", "testing", "baz", [{ prop1: "hello", prop2: null }]);
+  root.testing.baz({prop1: "hello", prop2: null});
+  verify("call", "testing", "baz", [{prop1: "hello", prop2: null}]);
 
-  Assert.throws(() => root.testing.baz({ prop2: 12 }),
+  Assert.throws(() => root.testing.baz({prop2: 12}),
                 /Property "prop1" is required/,
                 "should throw without required property");
 
-  Assert.throws(() => root.testing.baz({ prop1: "hi", prop3: 12 }),
+  Assert.throws(() => root.testing.baz({prop1: "hi", prop3: 12}),
                 /Property "prop3" is unsupported by Firefox/,
                 "should throw with unsupported property");
 
-  Assert.throws(() => root.testing.baz({ prop1: "hi", prop4: 12 }),
+  Assert.throws(() => root.testing.baz({prop1: "hi", prop4: 12}),
                 /Unexpected property "prop4"/,
                 "should throw with unexpected property");
 
-  Assert.throws(() => root.testing.baz({ prop1: 12 }),
+  Assert.throws(() => root.testing.baz({prop1: 12}),
                 /Expected string instead of 12/,
                 "should throw with wrong type");
 
@@ -283,10 +456,88 @@ add_task(function* () {
 
   root.testing.quosimodo({a: 10, b: 20, c: 30});
   verify("call", "testing", "quosimodo", [{a: 10, b: 20, c: 30}]);
+  tallied = null;
 
   Assert.throws(() => root.testing.quosimodo(10),
                 /Incorrect argument types/,
                 "should throw for wrong type");
+
+  root.testing.patternprop({prop1: "12", prop2: "42", Prop3: "43", foo1: "x"});
+  verify("call", "testing", "patternprop", [{prop1: "12", prop2: "42", Prop3: "43", foo1: "x"}]);
+  tallied = null;
+
+  root.testing.patternprop({prop1: "12"});
+  verify("call", "testing", "patternprop", [{prop1: "12"}]);
+  tallied = null;
+
+  Assert.throws(() => root.testing.patternprop({prop1: "12", foo1: null}),
+                /Expected string instead of null/,
+                "should throw for wrong property type");
+
+  Assert.throws(() => root.testing.patternprop({prop1: "xx", prop2: "yy"}),
+                /String "xx" must match \/\^\\d\+\$\//,
+                "should throw for wrong property type");
+
+  Assert.throws(() => root.testing.patternprop({prop1: "12", prop2: 42}),
+                /Expected string instead of 42/,
+                "should throw for wrong property type");
+
+  Assert.throws(() => root.testing.patternprop({prop1: "12", prop2: null}),
+                /Expected string instead of null/,
+                "should throw for wrong property type");
+
+  Assert.throws(() => root.testing.patternprop({prop1: "12", propx: "42"}),
+                /Unexpected property "propx"/,
+                "should throw for unexpected property");
+
+  Assert.throws(() => root.testing.patternprop({prop1: "12", Foo1: "x"}),
+                /Unexpected property "Foo1"/,
+                "should throw for unexpected property");
+
+  root.testing.pattern("DEADbeef");
+  verify("call", "testing", "pattern", ["DEADbeef"]);
+  tallied = null;
+
+  Assert.throws(() => root.testing.pattern("DEADcow"),
+                /String "DEADcow" must match \/\^\[0-9a-f\]\+\$\/i/,
+                "should throw for non-match");
+
+  root.testing.format({url: "http://foo/bar",
+                       relativeUrl: "http://foo/bar"});
+  verify("call", "testing", "format", [{url: "http://foo/bar",
+                                        relativeUrl: "http://foo/bar",
+                                        strictRelativeUrl: null}]);
+  tallied = null;
+
+  root.testing.format({relativeUrl: "foo.html", strictRelativeUrl: "foo.html"});
+  verify("call", "testing", "format", [{url: null,
+                                        relativeUrl: `${wrapper.url}foo.html`,
+                                        strictRelativeUrl: `${wrapper.url}foo.html`}]);
+  tallied = null;
+
+  for (let format of ["url", "relativeUrl"]) {
+    Assert.throws(() => root.testing.format({[format]: "chrome://foo/content/"}),
+                  /Access denied/,
+                  "should throw for access denied");
+  }
+
+  for (let url of ["//foo.html", "http://foo/bar.html"]) {
+    Assert.throws(() => root.testing.format({strictRelativeUrl: url}),
+                  /must be a relative URL/,
+                  "should throw for non-relative URL");
+  }
+
+  root.testing.deep({foo: {bar: [{baz: {required: 12, optional: "42"}}]}});
+  verify("call", "testing", "deep", [{foo: {bar: [{baz: {required: 12, optional: "42"}}]}}]);
+  tallied = null;
+
+  Assert.throws(() => root.testing.deep({foo: {bar: [{baz: {optional: "42"}}]}}),
+                /Type error for parameter arg \(Error processing foo\.bar\.0\.baz: Property "required" is required\) for testing\.deep/,
+                "should throw with the correct object path");
+
+  Assert.throws(() => root.testing.deep({foo: {bar: [{baz: {required: 12, optional: 42}}]}}),
+                /Type error for parameter arg \(Error processing foo\.bar\.0\.baz\.optional: Expected string instead of 42\) for testing\.deep/,
+                "should throw with the correct object path");
 
   root.testing.onFoo.addListener(f);
   do_check_eq(JSON.stringify(tallied.slice(0, -1)), JSON.stringify(["addListener", "testing", "onFoo"]));
@@ -332,4 +583,209 @@ add_task(function* () {
                   /Expected a plain JavaScript object, got a Proxy/,
                   "should throw when passing a Proxy");
   }
+
+
+  root.testing.extended1({prop1: "foo", prop2: "bar"});
+  verify("call", "testing", "extended1", [{prop1: "foo", prop2: "bar"}]);
+  tallied = null;
+
+  Assert.throws(() => root.testing.extended1({prop1: "foo", prop2: 12}),
+                /Expected string instead of 12/,
+                "should throw for wrong property type");
+
+  Assert.throws(() => root.testing.extended1({prop1: "foo"}),
+                /Property "prop2" is required/,
+                "should throw for missing property");
+
+  Assert.throws(() => root.testing.extended1({prop1: "foo", prop2: "bar", prop3: "xxx"}),
+                /Unexpected property "prop3"/,
+                "should throw for extra property");
+
+
+  root.testing.extended2("foo");
+  verify("call", "testing", "extended2", ["foo"]);
+  tallied = null;
+
+  root.testing.extended2(12);
+  verify("call", "testing", "extended2", [12]);
+  tallied = null;
+
+  Assert.throws(() => root.testing.extended2(true),
+                /Incorrect argument types/,
+                "should throw for wrong argument type");
+
+  root.testing.prop3.sub_foo();
+  verify("call", "testing.prop3", "sub_foo", []);
+  tallied = null;
+
+  Assert.throws(() => root.testing.prop4.sub_foo(),
+                /root.testing.prop4 is undefined/,
+                "should throw for unsupported submodule");
+});
+
+let deprecatedJson = [
+  {namespace: "deprecated",
+
+   properties: {
+     accessor: {
+       type: "string",
+       writable: true,
+       deprecated: "This is not the property you are looking for",
+     },
+   },
+
+   types: [
+     {
+       "id": "Type",
+       "type": "string",
+     },
+   ],
+
+   functions: [
+     {
+       name: "property",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           type: "object",
+           properties: {
+             foo: {
+               type: "string",
+             },
+           },
+           additionalProperties: {
+             type: "any",
+             deprecated: "Unknown property",
+           },
+         },
+       ],
+     },
+
+     {
+       name: "value",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           choices: [
+             {
+               type: "integer",
+             },
+             {
+               type: "string",
+               deprecated: "Please use an integer, not ${value}",
+             },
+           ],
+         },
+       ],
+     },
+
+     {
+       name: "choices",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           deprecated: "You have no choices",
+           choices: [
+             {
+               type: "integer",
+             },
+           ],
+         },
+       ],
+     },
+
+     {
+       name: "ref",
+       type: "function",
+       parameters: [
+         {
+           name: "arg",
+           choices: [
+             {
+               $ref: "Type",
+               deprecated: "Deprecated alias",
+             },
+           ],
+         },
+       ],
+     },
+
+     {
+       name: "method",
+       type: "function",
+       deprecated: "Do not call this method",
+       parameters: [
+       ],
+     },
+   ],
+
+   events: [
+     {
+       name: "onDeprecated",
+       type: "function",
+       deprecated: "This event does not work",
+     },
+   ],
+  },
+];
+
+add_task(function* testDeprecation() {
+  let url = "data:," + JSON.stringify(deprecatedJson);
+  let uri = BrowserUtils.makeURI(url);
+  yield Schemas.load(uri);
+
+  let root = {};
+  Schemas.inject(root, wrapper);
+
+  talliedErrors.length = 0;
+
+
+  root.deprecated.property({foo: "bar", xxx: "any", yyy: "property"});
+  verify("call", "deprecated", "property", [{foo: "bar", xxx: "any", yyy: "property"}]);
+  checkErrors([
+    "Error processing xxx: Unknown property",
+    "Error processing yyy: Unknown property",
+  ]);
+
+  root.deprecated.value(12);
+  verify("call", "deprecated", "value", [12]);
+  checkErrors([]);
+
+  root.deprecated.value("12");
+  verify("call", "deprecated", "value", ["12"]);
+  checkErrors(["Please use an integer, not \"12\""]);
+
+  root.deprecated.choices(12);
+  verify("call", "deprecated", "choices", [12]);
+  checkErrors(["You have no choices"]);
+
+  root.deprecated.ref("12");
+  verify("call", "deprecated", "ref", ["12"]);
+  checkErrors(["Deprecated alias"]);
+
+  root.deprecated.method();
+  verify("call", "deprecated", "method", []);
+  checkErrors(["Do not call this method"]);
+
+
+  void root.deprecated.accessor;
+  verify("get", "deprecated", "accessor", null);
+  checkErrors(["This is not the property you are looking for"]);
+
+  root.deprecated.accessor = "x";
+  verify("set", "deprecated", "accessor", "x");
+  checkErrors(["This is not the property you are looking for"]);
+
+
+  root.deprecated.onDeprecated.addListener(() => {});
+  checkErrors(["This event does not work"]);
+
+  root.deprecated.onDeprecated.removeListener(() => {});
+  checkErrors(["This event does not work"]);
+
+  root.deprecated.onDeprecated.hasListener(() => {});
+  checkErrors(["This event does not work"]);
 });

@@ -357,6 +357,7 @@ class BuildOptionParser(object):
         'source': 'builds/releng_sub_%s_configs/%s_source.py',
         'api-9': 'builds/releng_sub_%s_configs/%s_api_9.py',
         'api-11': 'builds/releng_sub_%s_configs/%s_api_11.py',
+        'api-15-frontend': 'builds/releng_sub_%s_configs/%s_api_15_frontend.py',
         'api-15': 'builds/releng_sub_%s_configs/%s_api_15.py',
         'api-9-debug': 'builds/releng_sub_%s_configs/%s_api_9_debug.py',
         'api-11-debug': 'builds/releng_sub_%s_configs/%s_api_11_debug.py',
@@ -772,6 +773,11 @@ or run without that action (ie: --no-{action})"
                 buildid = self.buildbot_config['properties']['buildid'].encode(
                     'ascii', 'replace'
                 )
+            else:
+                # for taskcluster, there are no buildbot properties, and we pass
+                # MOZ_BUILD_DATE into mozharness as an environment variable, only
+                # to have it pass the same value out with the same name.
+                buildid = os.environ.get('MOZ_BUILD_DATE')
 
         if not buildid:
             self.info("Creating buildid through current time")
@@ -1036,6 +1042,8 @@ or run without that action (ie: --no-{action})"
             post_upload_cmd.append('--release-to-dated')
             if c['platform_supports_post_upload_to_latest']:
                 post_upload_cmd.append('--release-to-latest')
+        post_upload_cmd.extend(c.get('post_upload_extra', []))
+
         return post_upload_cmd
 
     def _ccache_z(self):
@@ -1146,7 +1154,7 @@ or run without that action (ie: --no-{action})"
         if auth_file:
             cmd.extend(['--authentication-file', auth_file])
         self.info(str(cmd))
-        self.run_command(cmd, cwd=dirs['abs_src_dir'], halt_on_failure=True)
+        self.run_command_m(cmd, cwd=dirs['abs_src_dir'], halt_on_failure=True)
 
     def query_revision(self, source_path=None):
         """ returns the revision of the build
@@ -2051,7 +2059,6 @@ or run without that action (ie: --no-{action})"
 
     def update(self):
         """ submit balrog update steps. """
-        c = self.config
         if not self.query_is_nightly():
             self.info("Not a nightly build, skipping balrog submission.")
             return

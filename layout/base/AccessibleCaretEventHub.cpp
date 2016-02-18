@@ -327,9 +327,22 @@ public:
       rv = nsEventStatus_eConsumeNoDefault;
     }
 
+    return rv;
+  }
+
+  virtual nsEventStatus OnRelease(AccessibleCaretEventHub* aContext) override
+  {
     aContext->SetState(aContext->NoActionState());
 
-    return rv;
+    // Do not consume the release since the press is not consumed in
+    // PressNoCaretState either.
+    return nsEventStatus_eIgnore;
+  }
+
+  virtual void OnScrollStart(AccessibleCaretEventHub* aContext) override
+  {
+    aContext->mManager->OnScrollStart();
+    aContext->SetState(aContext->ScrollState());
   }
 
   virtual void OnReflow(AccessibleCaretEventHub* aContext) override
@@ -630,7 +643,7 @@ AccessibleCaretEventHub::CancelLongTapInjector()
 AccessibleCaretEventHub::FireLongTap(nsITimer* aTimer,
                                      void* aAccessibleCaretEventHub)
 {
-  auto self = static_cast<AccessibleCaretEventHub*>(aAccessibleCaretEventHub);
+  auto* self = static_cast<AccessibleCaretEventHub*>(aAccessibleCaretEventHub);
   self->mState->OnLongTap(self, self->mPressPoint);
 }
 
@@ -716,7 +729,7 @@ AccessibleCaretEventHub::CancelScrollEndInjector()
 AccessibleCaretEventHub::FireScrollEnd(nsITimer* aTimer,
                                        void* aAccessibleCaretEventHub)
 {
-  auto self = static_cast<AccessibleCaretEventHub*>(aAccessibleCaretEventHub);
+  auto* self = static_cast<AccessibleCaretEventHub*>(aAccessibleCaretEventHub);
   self->mState->OnScrollEnd(self);
 }
 

@@ -44,7 +44,6 @@ class nsIURI;
 class nsIScrollableFrame;
 class nsAttrValueOrString;
 class nsContentList;
-class nsDOMSettableTokenList;
 class nsDOMTokenList;
 struct nsRect;
 class nsFocusManager;
@@ -57,6 +56,7 @@ namespace mozilla {
 namespace dom {
   struct ScrollIntoViewOptions;
   struct ScrollToOptions;
+  class UnrestrictedDoubleOrKeyframeAnimationOptions;
 } // namespace dom
 } // namespace mozilla
 
@@ -728,8 +728,8 @@ public:
   }
 
   // aCx == nullptr is allowed only if aOptions.isNullOrUndefined()
-  void MozRequestFullScreen(JSContext* aCx, JS::Handle<JS::Value> aOptions,
-                            ErrorResult& aError);
+  void RequestFullscreen(JSContext* aCx, JS::Handle<JS::Value> aOptions,
+                         ErrorResult& aError);
   void MozRequestPointerLock();
   Attr* GetAttributeNode(const nsAString& aName);
   already_AddRefed<Attr> SetAttributeNode(Attr& aNewAttr,
@@ -824,6 +824,12 @@ public:
   virtual void SetUndoScope(bool aUndoScope, ErrorResult& aError)
   {
   }
+
+  already_AddRefed<Animation> Animate(
+    JSContext* aContext,
+    JS::Handle<JSObject*> aFrames,
+    const UnrestrictedDoubleOrKeyframeAnimationOptions& aOptions,
+    ErrorResult& aError);
 
   // Note: GetAnimations will flush style while GetAnimationsUnsorted won't.
   void GetAnimations(nsTArray<RefPtr<Animation>>& aAnimations);
@@ -1291,7 +1297,7 @@ protected:
    */
   virtual void GetLinkTarget(nsAString& aTarget);
 
-  nsDOMSettableTokenList* GetTokenList(nsIAtom* aAtom);
+  nsDOMTokenList* GetTokenList(nsIAtom* aAtom);
   void GetTokenList(nsIAtom* aAtom, nsIVariant** aResult);
   nsresult SetTokenList(nsIAtom* aAtom, nsIVariant* aValue);
 
@@ -1801,8 +1807,8 @@ NS_IMETHOD ReleaseCapture(void) final override                                \
 NS_IMETHOD MozRequestFullScreen(void) final override                          \
 {                                                                             \
   mozilla::ErrorResult rv;                                                    \
-  Element::MozRequestFullScreen(nullptr, JS::UndefinedHandleValue, rv);       \
-  return rv.StealNSResult();                                                      \
+  Element::RequestFullscreen(nullptr, JS::UndefinedHandleValue, rv);          \
+  return rv.StealNSResult();                                                  \
 }                                                                             \
 NS_IMETHOD MozRequestPointerLock(void) final override                         \
 {                                                                             \

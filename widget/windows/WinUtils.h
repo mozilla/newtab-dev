@@ -128,6 +128,15 @@ public:
 class WinUtils
 {
 public:
+  /**
+   * Get the system's default logical-to-physical DPI scaling factor,
+   * which is based on the primary display. Note however that unlike
+   * LogToPhysFactor(GetPrimaryMonitor()), this will not change during
+   * a session even if the displays are reconfigured. This scale factor
+   * is used by Windows theme metrics etc, which do not fully support
+   * dynamic resolution changes but are only updated on logout.
+   */
+  static double SystemScaleFactor();
 
   static bool IsPerMonitorDPIAware();
   /**
@@ -394,6 +403,18 @@ public:
   * each individual digitizer.
   */
   static uint32_t GetMaxTouchPoints();
+
+  /**
+   * Detect if path is within the Users folder and Users is actually a junction
+   * point to another folder.
+   * If this is detected it will change the path to the actual path.
+   *
+   * @param aPath path to be resolved.
+   * @return true if successful, including if nothing needs to be changed.
+   *         false if something failed or aPath does not exist, aPath will
+   *               remain unchanged.
+   */
+  static bool ResolveMovedUsersFolder(std::wstring& aPath);
 
   /**
   * dwmapi.dll function typedefs and declarations

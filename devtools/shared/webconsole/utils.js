@@ -1,8 +1,8 @@
-/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* vim: set ft= javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
 
@@ -618,12 +618,11 @@ exports.Utils = WebConsoleUtils;
 // Localization
 //////////////////////////////////////////////////////////////////////////
 
-WebConsoleUtils.l10n = function WCU_l10n(aBundleURI)
-{
-  this._bundleUri = aBundleURI;
+WebConsoleUtils.L10n = function(bundleURI) {
+  this._bundleUri = bundleURI;
 };
 
-WebConsoleUtils.l10n.prototype = {
+WebConsoleUtils.L10n.prototype = {
   _stringBundle: null,
 
   get stringBundle()

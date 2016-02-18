@@ -1020,6 +1020,7 @@ private:
   // and such entries are stored at the end of the array. Uninitialized entries
   // and entries marked as deleted are not present in this array.
   nsTArray<CacheIndexRecord *>  mFrecencyArray;
+  bool                          mFrecencyArraySorted;
 
   nsTArray<CacheIndexIterator *> mIterators;
 
@@ -1046,16 +1047,7 @@ private:
       : mObserver(aWeakObserver) { }
     virtual ~DiskConsumptionObserver() {
       if (mObserver && !NS_IsMainThread()) {
-        nsIWeakReference *obs;
-        mObserver.forget(&obs);
-
-        nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-        if (mainThread) {
-          NS_ProxyRelease(mainThread, obs);
-        } else {
-          NS_WARNING("Cannot get main thread, leaking weak reference to "
-                     "CacheStorageConsumptionObserver.");
-        }
+        NS_ReleaseOnMainThread(mObserver.forget());
       }
     }
 

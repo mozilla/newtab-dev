@@ -252,8 +252,15 @@ static int nr_ice_component_initialize_udp(struct nr_ice_ctx_ *ctx,nr_ice_compon
           cand=0;
         }
       }
+      else{
+        r_log(LOG_ICE,LOG_WARNING,"ICE(%s): relay only option results in no host candidate for %s",ctx->label,addrs[i].addr.as_string);
+      }
 
 #ifdef USE_TURN
+      if ((ctx->flags & NR_ICE_CTX_FLAGS_RELAY_ONLY) &&
+          (ctx->turn_server_ct == 0)) {
+        r_log(LOG_ICE,LOG_ERR,"ICE(%s): relay only option is set without any TURN server configured",ctx->label);
+      }
       /* And both a srvrflx and relayed candidate for each TURN server (unless
          we're in relay-only mode, in which case just the relayed one) */
       for(j=0;j<ctx->turn_server_ct;j++){
@@ -418,6 +425,7 @@ static int nr_ice_component_initialize_tcp(struct nr_ice_ctx_ *ctx,nr_ice_compon
         ABORT(r);
     }
     if (ctx->flags & NR_ICE_CTX_FLAGS_RELAY_ONLY) {
+      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): relay only option results in ICE TCP being disabled",ctx->label);
       ice_tcp_disabled = 1;
     }
 
@@ -489,6 +497,14 @@ static int nr_ice_component_initialize_tcp(struct nr_ice_ctx_ *ctx,nr_ice_compon
         /* Skip non-TCP */
         if (ctx->turn_servers[j].turn_server.transport != IPPROTO_TCP)
           continue;
+
+        if (ctx->turn_servers[j].turn_server.type == NR_ICE_STUN_SERVER_TYPE_ADDR &&
+            nr_transport_addr_cmp(&ctx->turn_servers[j].turn_server.u.addr,
+                                  &addrs[i].addr,
+                                  NR_TRANSPORT_ADDR_CMP_MODE_VERSION)) {
+          r_log(LOG_ICE,LOG_INFO,"ICE(%s): Skipping TURN server because of IP version mis-match (%u - %u)",ctx->label,addrs[i].addr.ip_version,ctx->turn_servers[j].turn_server.u.addr.ip_version);
+          continue;
+        }
 
         if (!ice_tcp_disabled) {
           /* Use TURN server to get srflx candidates */

@@ -22,7 +22,7 @@
 
 struct JSContext;
 class JSObject;
-class nsPIDOMWindow;
+class nsPIDOMWindowInner;
 
 namespace mozilla {
 
@@ -73,7 +73,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MediaSource, DOMEventTargetHelper)
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOM_MEDIASOURCE_IMPLEMENTATION_IID)
 
-  nsPIDOMWindow* GetParentObject() const;
+  nsPIDOMWindowInner* GetParentObject() const;
 
   JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
@@ -100,12 +100,6 @@ public:
   // that were evicted are provided.
   void NotifyEvicted(double aStart, double aEnd);
 
-#if defined(DEBUG)
-  // Dump the contents of each SourceBuffer to a series of files under aPath.
-  // aPath must exist.  Debug only, invoke from your favourite debugger.
-  void Dump(const char* aPath);
-#endif
-
   // Returns a string describing the state of the MediaSource internal
   // buffered data. Used for debugging purposes.
   void GetMozDebugReaderData(nsAString& aString);
@@ -119,7 +113,7 @@ private:
 
   ~MediaSource();
 
-  explicit MediaSource(nsPIDOMWindow* aWindow);
+  explicit MediaSource(nsPIDOMWindowInner* aWindow);
 
   friend class AsyncEventRunner<MediaSource>;
   void DispatchSimpleEvent(const char* aName);

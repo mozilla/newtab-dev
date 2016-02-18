@@ -23,7 +23,8 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
     void GetUUID(nsACString_internal&) override;
     nsresult Allocate(const dom::MediaTrackConstraints &,
                       const mozilla::MediaEnginePrefs&,
-                      const nsString& aDeviceId) override;
+                      const nsString& aDeviceId,
+                      const nsACString& aOrigin) override;
     nsresult Deallocate() override;
     nsresult Start(mozilla::SourceMediaStream*, mozilla::TrackID) override;
     void SetDirectListeners(bool aHasDirectListeners) override {};
@@ -86,7 +87,7 @@ private:
     int32_t mTimePerFrame;
     ScopedFreePtr<unsigned char> mData;
     size_t mDataSize;
-    nsCOMPtr<nsIDOMWindow> mWindow;
+    nsCOMPtr<nsPIDOMWindowOuter> mWindow;
     RefPtr<layers::SourceSurfaceImage> mImage;
     nsCOMPtr<nsITimer> mTimer;
     Monitor mMonitor;

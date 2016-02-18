@@ -1049,7 +1049,7 @@ struct DefaultHasher<AbstractFramePtr> {
 // entries that must be scanned through, and to avoid the headaches of
 // maintaining a cache for each compartment and invalidating stale cache entries
 // in the presence of cross-compartment calls.
-class LiveSavedFrameCache : public JS::Traceable
+class LiveSavedFrameCache
 {
   public:
     using FramePtr = mozilla::Variant<AbstractFramePtr, jit::CommonFrameLayout*>;
@@ -1102,7 +1102,7 @@ class LiveSavedFrameCache : public JS::Traceable
     }
 
     static mozilla::Maybe<FramePtr> getFramePtr(FrameIter& iter);
-    static void trace(LiveSavedFrameCache* cache, JSTracer* trc);
+    void trace(JSTracer* trc);
 
     void find(JSContext* cx, FrameIter& frameIter, MutableHandleSavedFrame frame) const;
     bool insert(JSContext* cx, FramePtr& framePtr, jsbytecode* pc, HandleSavedFrame savedFrame);
@@ -1388,15 +1388,6 @@ class JitActivation : public Activation
     JSContext* prevJitJSContext_;
     bool active_;
 
-    // The lazy link stub reuse the frame pushed for calling a function as an
-    // exit frame. In a few cases, such as after calls from asm.js, we might
-    // have an entry frame followed by an exit frame. This pattern can be
-    // assimilated as a fake exit frame (unwound frame), in which case we skip
-    // marking during a GC. To ensure that we do mark the stack as expected we
-    // have to keep a flag set by the LazyLink VM function to safely mark the
-    // stack if a GC happens during the link phase.
-    bool isLazyLinkExitFrame_;
-
     // Rematerialized Ion frames which has info copied out of snapshots. Maps
     // frame pointers (i.e. jitTop) to a vector of rematerializations of all
     // inline frames associated with that frame.
@@ -1532,14 +1523,6 @@ class JitActivation : public Activation
     // Unregister the bailout data when the frame is reconstructed.
     void cleanBailoutData();
 
-    // Return the bailout information if it is registered.
-    bool isLazyLinkExitFrame() const { return isLazyLinkExitFrame_; }
-
-    // Register the bailout data when it is constructed.
-    void setLazyLinkExitFrame(bool isExitFrame) {
-        isLazyLinkExitFrame_ = isExitFrame;
-    }
-
     static size_t offsetOfLastProfilingFrame() {
         return offsetof(JitActivation, lastProfilingFrame_);
     }
@@ -1581,9 +1564,6 @@ class JitActivationIterator : public ActivationIterator
         settle();
         return *this;
     }
-
-    // Returns the bottom and top addresses of the current JitActivation.
-    void jitStackRange(uintptr_t*& min, uintptr_t*& end);
 };
 
 } // namespace jit

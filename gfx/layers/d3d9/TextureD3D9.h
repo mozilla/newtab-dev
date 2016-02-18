@@ -112,6 +112,8 @@ public:
 
   virtual ~DataTextureSourceD3D9();
 
+  virtual const char* Name() const override { return "DataTextureSourceD3D9"; }
+
   // DataTextureSource
 
   virtual bool Update(gfx::DataSourceSurface* aSurface,
@@ -398,6 +400,8 @@ public:
                               const gfx::IntRect& aRect);
   virtual ~CompositingRenderTargetD3D9();
 
+  virtual const char* Name() const override { return "CompositingRenderTargetD3D9"; }
+
   virtual TextureSourceD3D9* AsSourceD3D9() override
   {
     MOZ_ASSERT(mTexture,
@@ -416,7 +420,6 @@ private:
 
   RefPtr<IDirect3DSurface9> mSurface;
   SurfaceInitMode mInitMode;
-  bool mInitialized;
 };
 
 }

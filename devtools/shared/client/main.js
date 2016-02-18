@@ -335,8 +335,15 @@ DebuggerClient.prototype = {
    * @param aOnConnected function
    *        If specified, will be called when the greeting packet is
    *        received from the debugging server.
+   *
+   * @return Promise
+   *         Resolves once connected with an array whose first element
+   *         is the application type, by default "browser", and the second
+   *         element is the traits object (help figure out the features
+   *         and behaviors of the server we connect to. See RootActor).
    */
   connect: function (aOnConnected) {
+    let deferred = promise.defer();
     this.emit("connect");
 
     // Also emit the event on the |DebuggerClient| object (not on the instance),
@@ -348,9 +355,11 @@ DebuggerClient.prototype = {
       if (aOnConnected) {
         aOnConnected(aApplicationType, aTraits);
       }
+      deferred.resolve([aApplicationType, aTraits]);
     });
 
     this._transport.ready();
+    return deferred.promise;
   },
 
   /**
@@ -440,7 +449,7 @@ DebuggerClient.prototype = {
         traits: cachedTab.traits,
       };
       DevToolsUtils.executeSoon(() => aOnResponse(cachedResponse, cachedTab));
-      return;
+      return promise.resolve([cachedResponse, cachedTab]);
     }
 
     let packet = {
@@ -461,12 +470,13 @@ DebuggerClient.prototype = {
   attachWorker: function DC_attachWorker(aWorkerActor, aOnResponse = noop) {
     let workerClient = this._clients.get(aWorkerActor);
     if (workerClient !== undefined) {
-      DevToolsUtils.executeSoon(() => aOnResponse({
+      let response = {
         from: workerClient.actor,
         type: "attached",
         url: workerClient.url
-      }, workerClient));
-      return;
+      };
+      DevToolsUtils.executeSoon(() => aOnResponse(response, workerClient));
+      return promise.resolve([response, workerClient]);
     }
 
     return this.request({ to: aWorkerActor, type: "attach" }).then(aResponse => {
@@ -556,8 +566,9 @@ DebuggerClient.prototype = {
    */
   attachThread: function (aThreadActor, aOnResponse = noop, aOptions={}) {
     if (this._clients.has(aThreadActor)) {
-      DevToolsUtils.executeSoon(() => aOnResponse({}, this._clients.get(aThreadActor)));
-      return;
+      let client = this._clients.get(aThreadActor);
+      DevToolsUtils.executeSoon(() => aOnResponse({}, client));
+      return promise.resolve([{}, client]);
     }
 
     let packet = {
@@ -586,8 +597,9 @@ DebuggerClient.prototype = {
    */
   attachTracer: function (aTraceActor, aOnResponse = noop) {
     if (this._clients.has(aTraceActor)) {
-      DevToolsUtils.executeSoon(() => aOnResponse({}, this._clients.get(aTraceActor)));
-      return;
+      let client = this._clients.get(aTraceActor);
+      DevToolsUtils.executeSoon(() => aOnResponse({}, client));
+      return promise.resolve([{}, client]);
     }
 
     let packet = {
@@ -1097,12 +1109,14 @@ DebuggerClient.prototype = {
       request.emit("json-reply", packet);
     };
 
-    this._pendingRequests.forEach((list, actor) => {
+    let pendingRequests = new Map(this._pendingRequests);
+    this._pendingRequests.clear();
+    pendingRequests.forEach((list, actor) => {
       list.forEach(request => reject("pending", request, actor));
     });
-    this._pendingRequests.clear();
-    this._activeRequests.forEach(reject.bind(null, "active"));
+    let activeRequests = new Map(this._activeRequests);
     this._activeRequests.clear();
+    activeRequests.forEach(reject.bind(null, "active"));
 
     // The |_pools| array on the client-side currently is used only by
     // protocol.js to store active fronts, mirroring the actor pools found in
@@ -1261,7 +1275,7 @@ TabClient.prototype = {
   attachThread: function(aOptions={}, aOnResponse = noop) {
     if (this.thread) {
       DevToolsUtils.executeSoon(() => aOnResponse({}, this.thread));
-      return;
+      return promise.resolve([{}, this.thread]);
     }
 
     let packet = {
@@ -1300,6 +1314,13 @@ TabClient.prototype = {
     },
     telemetry: "TABDETACH"
   }),
+
+  /**
+   * Bring the window to the front.
+   */
+  focus: DebuggerClient.requester({
+    type: "focus"
+  }, {}),
 
   /**
    * Reload the page in this tab.
@@ -1827,11 +1848,10 @@ ThreadClient.prototype = {
     // If the debuggee is paused, we have to send the flag via a reconfigure
     // request.
     if (this.paused) {
-      this.reconfigure({
+      return this.reconfigure({
         pauseOnExceptions: aPauseOnExceptions,
         ignoreCaughtExceptions: aIgnoreCaughtExceptions
       }, aOnResponse);
-      return;
     }
     // Otherwise send the flag using a standard resume request.
     return this.interrupt(aResponse => {

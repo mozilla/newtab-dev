@@ -184,8 +184,6 @@ const CustomizableWidgets = [
 
       let options = PlacesUtils.history.getNewQueryOptions();
       options.excludeQueries = true;
-      options.includeHidden = false;
-      options.resultType = options.RESULTS_AS_URI;
       options.queryType = options.QUERY_TYPE_HISTORY;
       options.sortingMode = options.SORT_BY_DATE_DESCENDING;
       options.maxResults = kMaxResults;
@@ -194,7 +192,7 @@ const CustomizableWidgets = [
       let items = doc.getElementById("PanelUI-historyItems");
       // Clear previous history items.
       while (items.firstChild) {
-        items.removeChild(items.firstChild);
+        items.firstChild.remove();
       }
 
       // Get all statically placed buttons to supply them with keyboard shortcuts.
@@ -205,32 +203,28 @@ const CustomizableWidgets = [
       PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
                          .asyncExecuteLegacyQueries([query], 1, options, {
         handleResult: function (aResultSet) {
-          let onHistoryVisit = function (aUri, aEvent, aItem) {
-            doc.defaultView.openUILink(aUri, aEvent);
-            CustomizableUI.hidePanelForNode(aItem);
+          let onItemClick = function (aEvent) {
+            let item = aEvent.target;
+            win.openUILink(item.getAttribute("targetURI"), aEvent);
+            CustomizableUI.hidePanelForNode(item);
           };
           let fragment = doc.createDocumentFragment();
-          for (let row, i = 0; (row = aResultSet.getNextRow()); i++) {
-            try {
-              let uri = row.getResultByIndex(1);
-              let title = row.getResultByIndex(2);
-              let icon = row.getResultByIndex(6);
+          let row;
+          while ((row = aResultSet.getNextRow())) {
+            let uri = row.getResultByIndex(1);
+            let title = row.getResultByIndex(2);
+            let icon = row.getResultByIndex(6);
 
-              let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-              item.setAttribute("label", title || uri);
-              item.setAttribute("targetURI", uri);
-              item.setAttribute("class", "subviewbutton");
-              item.addEventListener("click", function (aEvent) {
-                onHistoryVisit(uri, aEvent, item);
-              });
-              if (icon) {
-                let iconURL = "moz-anno:favicon:" + icon;
-                item.setAttribute("image", iconURL);
-              }
-              fragment.appendChild(item);
-            } catch (e) {
-              log.error("Error while showing history subview: " + e);
+            let item = doc.createElementNS(kNSXUL, "toolbarbutton");
+            item.setAttribute("label", title || uri);
+            item.setAttribute("targetURI", uri);
+            item.setAttribute("class", "subviewbutton");
+            item.addEventListener("click", onItemClick);
+            if (icon) {
+              let iconURL = "moz-anno:favicon:" + icon;
+              item.setAttribute("image", iconURL);
             }
+            fragment.appendChild(item);
           }
           items.appendChild(fragment);
         },
@@ -325,26 +319,46 @@ const CustomizableWidgets = [
       let formatArgs = ["android", "ios"].map(os => {
         let link = doc.createElement("label");
         link.textContent = bundle.getString(`appMenuRemoteTabs.mobilePromo.${os}`)
-        link.setAttribute("href", Services.prefs.getCharPref(`identity.mobilepromo.${os}`) + "synced-tabs");
+        link.setAttribute("mobile-promo-os", os);
         link.className = "text-link remotetabs-promo-link";
         return link.outerHTML;
       });
       // Put it all together...
       let contents = bundle.getFormattedString("appMenuRemoteTabs.mobilePromo", formatArgs);
-      doc.getElementById("PanelUI-remotetabs-mobile-promo").innerHTML = contents;
+      let promoParentElt = doc.getElementById("PanelUI-remotetabs-mobile-promo");
+      promoParentElt.innerHTML = contents;
+      // We manually manage the "click" event to open the promo links because
+      // allowing the "text-link" widget handle it has 2 problems: (1) it only
+      // supports button 0 and (2) it's tricky to intercept when it does the
+      // open and auto-close the panel. (1) can probably be fixed, but (2) is
+      // trickier without hard-coding here the knowledge of exactly what buttons
+      // it does support.
+      // So we allow left and middle clicks to open the link in a new tab and
+      // close the panel; not setting a "href" attribute prevents the text-link
+      // widget handling it, and we build the final URL in the click handler to
+      // make testing easier (ie, so tests can change the pref after the links
+      // were created and have the new pref value used.)
+      promoParentElt.addEventListener("click", e => {
+        let os = e.target.getAttribute("mobile-promo-os");
+        if (!os || e.button > 1) {
+          return;
+        }
+        let link = Services.prefs.getCharPref(`identity.mobilepromo.${os}`) + "synced-tabs";
+        doc.defaultView.openUILinkIn(link, "tab");
+        CustomizableUI.hidePanelForNode(e.target);
+      });
     },
     onViewShowing(aEvent) {
       let doc = aEvent.target.ownerDocument;
       this._tabsList = doc.getElementById("PanelUI-remotetabs-tabslist");
       Services.obs.addObserver(this, SyncedTabs.TOPIC_TABS_CHANGED, false);
 
-      let deck = doc.getElementById("PanelUI-remotetabs-deck");
       if (SyncedTabs.isConfiguredToSyncTabs) {
         if (SyncedTabs.hasSyncedThisSession) {
-          deck.selectedIndex = this.deckIndices.DECKINDEX_TABS;
+          this.setDeckIndex(this.deckIndices.DECKINDEX_TABS);
         } else {
           // Sync hasn't synced tabs yet, so show the "fetching" panel.
-          deck.selectedIndex = this.deckIndices.DECKINDEX_FETCHING;
+          this.setDeckIndex(this.deckIndices.DECKINDEX_FETCHING);
         }
         // force a background sync.
         SyncedTabs.syncTabs().catch(ex => {
@@ -354,7 +368,7 @@ const CustomizableWidgets = [
         this._showTabs();
       } else {
         // not configured to sync tabs, so no point updating the list.
-        deck.selectedIndex = this.deckIndices.DECKINDEX_TABSDISABLED;
+        this.setDeckIndex(this.deckIndices.DECKINDEX_TABSDISABLED);
       }
     },
     onViewHiding() {
@@ -371,6 +385,14 @@ const CustomizableWidgets = [
           break;
       }
     },
+    setDeckIndex(index) {
+      let deck = this._tabsList.ownerDocument.getElementById("PanelUI-remotetabs-deck");
+      // We call setAttribute instead of relying on the XBL property setter due
+      // to things going wrong when we try and set the index before the XBL
+      // binding has been created - see bug 1241851 for the gory details.
+      deck.setAttribute("selectedIndex", index);
+    },
+
     _showTabsPromise: Promise.resolve(),
     // Update the tab list after any existing in-flight updates are complete.
     _showTabs() {
@@ -381,7 +403,6 @@ const CustomizableWidgets = [
     // Return a new promise to update the tab list.
     __showTabs() {
       let doc = this._tabsList.ownerDocument;
-      let deck = doc.getElementById("PanelUI-remotetabs-deck");
       return SyncedTabs.getTabClients().then(clients => {
         // The view may have been hidden while the promise was resolving.
         if (!this._tabsList) {
@@ -394,11 +415,11 @@ const CustomizableWidgets = [
         }
 
         if (clients.length === 0) {
-          deck.selectedIndex = this.deckIndices.DECKINDEX_NOCLIENTS;
+          this.setDeckIndex(this.deckIndices.DECKINDEX_NOCLIENTS);
           return;
         }
 
-        deck.selectedIndex = this.deckIndices.DECKINDEX_TABS;
+        this.setDeckIndex(this.deckIndices.DECKINDEX_TABS);
         this._clearTabList();
         this._sortFilterClientsAndTabs(clients);
         let fragment = doc.createDocumentFragment();
@@ -478,7 +499,7 @@ const CustomizableWidgets = [
       // First sort and filter the list of tabs for each client. Note that the
       // SyncedTabs module promises that the objects it returns are never
       // shared, so we are free to mutate those objects directly.
-      const maxTabs = 15;
+      const maxTabs = 50;
       for (let client of clients) {
         let tabs = client.tabs;
         tabs.sort((a, b) => b.lastUsed - a.lastUsed);
@@ -722,7 +743,7 @@ const CustomizableWidgets = [
         zoomResetButton.setAttribute("label", CustomizableUI.getLocalizedProperty(
           buttons[1], "label", [updateDisplay ? zoomFactor : 100]
         ));
-      };
+      }
 
       // Register ourselves with the service so we know when the zoom prefs change.
       Services.obs.addObserver(updateZoomResetButton, "browser-fullZoom:zoomChange", false);

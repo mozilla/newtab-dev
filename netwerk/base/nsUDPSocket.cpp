@@ -523,15 +523,15 @@ nsUDPSocket::OnSocketDetached(PRFileDesc *fd)
   if (mListener)
   {
     // need to atomically clear mListener.  see our Close() method.
-    nsCOMPtr<nsIUDPSocketListener> listener;
+    RefPtr<nsIUDPSocketListener> listener = nullptr;
     {
       MutexAutoLock lock(mLock);
-      mListener.swap(listener);
+      listener = mListener.forget();
     }
 
     if (listener) {
       listener->OnStopListening(this, mCondition);
-      NS_ProxyRelease(mListenerTarget, listener);
+      NS_ProxyRelease(mListenerTarget, listener.forget());
     }
   }
 }
@@ -784,7 +784,40 @@ nsUDPSocket::CloseSocket()
       // If shutdown last to long, let the socket leak and do not close it.
       UDPSOCKET_LOG(("Intentional leak"));
     } else {
+
+      PRIntervalTime closeStarted = 0;
+      if (gSocketTransportService->IsTelemetryEnabled()) {
+        closeStarted = PR_IntervalNow();
+      }
+
       PR_Close(mFD);
+
+      if (gSocketTransportService->IsTelemetryEnabled()) {
+        PRIntervalTime now = PR_IntervalNow();
+        if (gIOService->IsNetTearingDown()) {
+          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_SHUTDOWN,
+                                PR_IntervalToMilliseconds(now - closeStarted));
+
+        } else if (PR_IntervalToSeconds(now - gIOService->LastConnectivityChange())
+                   < 60) {
+          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_CONNECTIVITY_CHANGE,
+                                PR_IntervalToMilliseconds(now - closeStarted));
+
+        } else if (PR_IntervalToSeconds(now - gIOService->LastNetworkLinkChange())
+                   < 60) {
+          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_LINK_CHANGE,
+                                PR_IntervalToMilliseconds(now - closeStarted));
+
+        } else if (PR_IntervalToSeconds(now - gIOService->LastOfflineStateChange())
+                   < 60) {
+          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_OFFLINE,
+                                PR_IntervalToMilliseconds(now - closeStarted));
+
+        } else {
+          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_NORMAL,
+                                PR_IntervalToMilliseconds(now - closeStarted));
+        }
+      }
     }
     mFD = nullptr;
   }

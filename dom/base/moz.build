@@ -7,6 +7,7 @@
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
+    'mozIDOMWindow.idl',
     'nsIConsoleAPIStorage.idl',
     'nsIContentPolicy.idl',
     'nsIContentPolicyBase.idl',
@@ -114,6 +115,7 @@ EXPORTS += [
     'nsNodeUtils.h',
     'nsPerformance.h',
     'nsPIDOMWindow.h',
+    'nsPIDOMWindowInlines.h',
     'nsPIWindowRoot.h',
     'nsPropertyTable.h',
     'nsRange.h',
@@ -150,6 +152,7 @@ EXPORTS.mozilla += [
 ]
 
 EXPORTS.mozilla.dom += [
+    '!UseCounterList.h',
     'AnonymousContent.h',
     'Attr.h',
     'BarProps.h',
@@ -278,7 +281,6 @@ UNIFIED_SOURCES += [
     'nsDOMNavigationTiming.cpp',
     'nsDOMScriptObjectFactory.cpp',
     'nsDOMSerializer.cpp',
-    'nsDOMSettableTokenList.cpp',
     'nsDOMTokenList.cpp',
     'nsDOMWindowList.cpp',
     'nsFocusManager.cpp',
@@ -434,6 +436,7 @@ LOCAL_INCLUDES += [
     '/dom/ipc',
     '/dom/storage',
     '/dom/svg',
+    '/dom/u2f',
     '/dom/workers',
     '/dom/xbl',
     '/dom/xml',

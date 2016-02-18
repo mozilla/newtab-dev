@@ -9,6 +9,7 @@ Cu.import("resource://devtools/client/shared/browser-loader.js", BrowserLoaderMo
 var { loader, require } = BrowserLoaderModule.BrowserLoader("resource://devtools/client/performance/", this);
 var { Task } = require("resource://gre/modules/Task.jsm");
 var { Heritage, ViewHelpers, WidgetMethods } = require("resource://devtools/client/shared/widgets/ViewHelpers.jsm");
+var {gDevTools} = require("devtools/client/framework/devtools");
 
 // Events emitted by various objects in the panel.
 var EVENTS = require("devtools/client/performance/events");
@@ -18,6 +19,9 @@ Object.defineProperty(this, "EVENTS", {
   writable: false
 });
 
+var React = require("devtools/client/shared/vendor/react");
+var ReactDOM = require("devtools/client/shared/vendor/react-dom");
+var JITOptimizationsView = React.createFactory(require("devtools/client/performance/components/jit-optimizations"));
 var Services = require("Services");
 var promise = require("promise");
 var EventEmitter = require("devtools/shared/event-emitter");
@@ -40,7 +44,6 @@ var FrameUtils = require("devtools/client/performance/modules/logic/frame-utils"
 var { CallView } = require("devtools/client/performance/modules/widgets/tree-view");
 var { ThreadNode } = require("devtools/client/performance/modules/logic/tree-model");
 var { FrameNode } = require("devtools/client/performance/modules/logic/tree-model");
-var { JITOptimizations } = require("devtools/client/performance/modules/logic/jit");
 
 // Widgets modules
 
@@ -50,7 +53,6 @@ var { TreeWidget } = require("devtools/client/shared/widgets/TreeWidget");
 
 var { SideMenuWidget } = require("resource://devtools/client/shared/widgets/SideMenuWidget.jsm");
 var { setNamedTimeout, clearNamedTimeout } = require("resource://devtools/client/shared/widgets/ViewHelpers.jsm");
-var { PluralForm } = require("resource://gre/modules/PluralForm.jsm");
 
 var BRANCH_NAME = "devtools.performance.ui.";
 
@@ -235,7 +237,6 @@ var PerformanceController = {
       withMemory: this.getOption("enable-memory"),
       withFrames: true,
       withGCEvents: true,
-      withJITOptimizations: this.getOption("enable-jit-optimizations"),
       withAllocations: this.getOption("enable-allocations"),
       allocationsSampleProbability: this.getPref("memory-sample-probability"),
       allocationsMaxLogLength: this.getPref("memory-max-log-length"),

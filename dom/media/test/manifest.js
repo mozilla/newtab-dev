@@ -480,7 +480,10 @@ var gSeekTests = [
   { name:"detodos.opus", type:"audio/ogg; codecs=opus", duration:2.9135 },
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
   { name:"owl.mp3", type:"audio/mpeg", duration:3.343 },
-  { name:"bogus.duh", type:"bogus/duh", duration:123 }
+  { name:"bogus.duh", type:"bogus/duh", duration:123 },
+
+  // Bug 1242338: hit a numerical problem while seeking to the duration.
+  { name:"bug482461-theora.ogv", type:"video/ogg", duration:4.138 },
 ];
 
 var gFastSeekTests = [
@@ -678,6 +681,7 @@ var gMetadataTests = [
   { name:"wave_metadata_bad_len.wav", tags: {
       name:"Track Title",
       artist:"Artist Name",
+      comments:"Comments",
     }
   },
   { name:"wave_metadata_bad_no_null.wav", tags: {
@@ -1354,8 +1358,8 @@ function removeNodeAndSource(n) {
 
 function once(target, name, cb) {
   var p = new Promise(function(resolve, reject) {
-    target.addEventListener(name, function() {
-      target.removeEventListener(name, cb);
+    target.addEventListener(name, function onceEvent() {
+      target.removeEventListener(name, onceEvent);
       resolve();
     });
   });

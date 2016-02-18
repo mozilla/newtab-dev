@@ -127,7 +127,7 @@ HttpBaseChannel::~HttpBaseChannel()
 {
   LOG(("Destroying HttpBaseChannel @%x\n", this));
 
-  NS_ReleaseOnMainThread(mLoadInfo);
+  NS_ReleaseOnMainThread(mLoadInfo.forget());
 
   // Make sure we don't leak
   CleanRedirectCacheChainIfNecessary();
@@ -212,6 +212,7 @@ NS_INTERFACE_MAP_BEGIN(HttpBaseChannel)
   NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)
   NS_INTERFACE_MAP_ENTRY(nsIForcePendingChannel)
   NS_INTERFACE_MAP_ENTRY(nsIUploadChannel)
+  NS_INTERFACE_MAP_ENTRY(nsIFormPOSTActionChannel)
   NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY(nsITraceableChannel)
@@ -314,17 +315,13 @@ HttpBaseChannel::SetDocshellUserAgentOverride()
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMWindow> domWindow;
+  nsCOMPtr<mozIDOMWindowProxy> domWindow;
   loadContext->GetAssociatedWindow(getter_AddRefs(domWindow));
   if (!domWindow) {
     return NS_OK;
   }
 
-  nsCOMPtr<nsPIDOMWindow> pDomWindow = do_QueryInterface(domWindow);
-  if (!pDomWindow) {
-    return NS_OK;
-  }
-
+  auto* pDomWindow = nsPIDOMWindowOuter::From(domWindow);
   nsIDocShell* docshell = pDomWindow->GetDocShell();
   if (!docshell) {
     return NS_OK;
@@ -1781,14 +1778,15 @@ HttpBaseChannel::GetRequestSucceeded(bool *aValue)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::RedirectTo(nsIURI *newURI)
+HttpBaseChannel::RedirectTo(nsIURI *targetURI)
 {
-  // We can only redirect unopened channels
-  ENSURE_CALLED_BEFORE_CONNECT();
+  // We cannot redirect after OnStartRequest of the listener
+  // has been called, since to redirect we have to switch channels
+  // and the dance with OnStartRequest et al has to start over.
+  // This would break the nsIStreamListener contract.
+  NS_ENSURE_FALSE(mOnStartRequestCalled, NS_ERROR_NOT_AVAILABLE);
 
-  // The redirect is stored internally for use in AsyncOpen
-  mAPIRedirectToURI = newURI;
-
+  mAPIRedirectToURI = targetURI;
   return NS_OK;
 }
 
@@ -1862,7 +1860,7 @@ HttpBaseChannel::GetTopWindowURI(nsIURI **aTopWindowURI)
     if (!util) {
       return NS_ERROR_NOT_AVAILABLE;
     }
-    nsCOMPtr<nsIDOMWindow> win;
+    nsCOMPtr<mozIDOMWindowProxy> win;
     nsresult rv = util->GetTopWindowForChannel(this, getter_AddRefs(win));
     if (NS_SUCCEEDED(rv)) {
       rv = util->GetURIFromWindow(win, getter_AddRefs(mTopWindowURI));
@@ -2735,6 +2733,12 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     httpInternal->SetAllowSpdy(mAllowSpdy);
     httpInternal->SetAllowAltSvc(mAllowAltSvc);
 
+    RefPtr<nsHttpChannel> realChannel;
+    CallQueryInterface(newChannel, realChannel.StartAssignment());
+    if (realChannel) {
+      realChannel->SetTopWindowURI(mTopWindowURI);
+    }
+
     // update the DocumentURI indicator since we are being redirected.
     // if this was a top-level document channel, then the new channel
     // should have its mDocumentURI point to newURI; otherwise, we
@@ -3092,23 +3096,21 @@ HttpBaseChannel::GetPerformance()
     if (!loadContext) {
         return nullptr;
     }
-    nsCOMPtr<nsIDOMWindow> domWindow;
+    nsCOMPtr<mozIDOMWindowProxy> domWindow;
     loadContext->GetAssociatedWindow(getter_AddRefs(domWindow));
     if (!domWindow) {
         return nullptr;
     }
-    nsCOMPtr<nsPIDOMWindow> pDomWindow = do_QueryInterface(domWindow);
+    auto* pDomWindow = nsPIDOMWindowOuter::From(domWindow);
     if (!pDomWindow) {
         return nullptr;
     }
-    if (!pDomWindow->IsInnerWindow()) {
-        pDomWindow = pDomWindow->GetCurrentInnerWindow();
-        if (!pDomWindow) {
-            return nullptr;
-        }
+    nsCOMPtr<nsPIDOMWindowInner> innerWindow = pDomWindow->GetCurrentInnerWindow();
+    if (!innerWindow) {
+      return nullptr;
     }
 
-    nsPerformance* docPerformance = pDomWindow->GetPerformance();
+    nsPerformance* docPerformance = innerWindow->GetPerformance();
     if (!docPerformance) {
       return nullptr;
     }
@@ -3188,21 +3190,32 @@ HttpBaseChannel::GetSecureUpgradedURI(nsIURI* aURI, nsIURI** aUpgradedURI)
   nsresult rv = aURI->Clone(getter_AddRefs(upgradedURI));
   NS_ENSURE_SUCCESS(rv,rv);
 
+  // Change the scheme to HTTPS:
   upgradedURI->SetScheme(NS_LITERAL_CSTRING("https"));
 
-  int32_t oldPort = -1;
-  rv = aURI->GetPort(&oldPort);
-  if (NS_FAILED(rv)) return rv;
+  // Change the default port to 443:
+  nsCOMPtr<nsIStandardURL> upgradedStandardURL = do_QueryInterface(upgradedURI);
+  if (upgradedStandardURL) {
+    upgradedStandardURL->SetDefaultPort(443);
+  } else {
+    // If we don't have a nsStandardURL, fall back to using GetPort/SetPort.
+    // XXXdholbert Is this function even called with a non-nsStandardURL arg,
+    // in practice?
+    int32_t oldPort = -1;
+    rv = aURI->GetPort(&oldPort);
+    if (NS_FAILED(rv)) return rv;
 
-  // Keep any nonstandard ports so only the scheme is changed.
-  // For example:
-  //  http://foo.com:80 -> https://foo.com:443
-  //  http://foo.com:81 -> https://foo.com:81
+    // Keep any nonstandard ports so only the scheme is changed.
+    // For example:
+    //  http://foo.com:80 -> https://foo.com:443
+    //  http://foo.com:81 -> https://foo.com:81
 
-  if (oldPort == 80 || oldPort == -1)
-      upgradedURI->SetPort(-1);
-  else
-      upgradedURI->SetPort(oldPort);
+    if (oldPort == 80 || oldPort == -1) {
+        upgradedURI->SetPort(-1);
+    } else {
+        upgradedURI->SetPort(oldPort);
+    }
+  }
 
   upgradedURI.forget(aUpgradedURI);
   return NS_OK;

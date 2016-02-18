@@ -12,6 +12,7 @@
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/MessageChannel.h"
+#include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePortBinding.h"
 #include "mozilla/dom/MessagePortChild.h"
 #include "mozilla/dom/MessagePortList.h"
@@ -44,46 +45,10 @@ using namespace mozilla::dom::workers;
 namespace mozilla {
 namespace dom {
 
-class DispatchEventRunnable final : public nsICancelableRunnable
+class PostMessageRunnable final : public nsICancelableRunnable
 {
   friend class MessagePort;
 
-public:
-  NS_DECL_ISUPPORTS
-
-  explicit DispatchEventRunnable(MessagePort* aPort)
-    : mPort(aPort)
-  { }
-
-  NS_IMETHOD
-  Run() override
-  {
-    MOZ_ASSERT(mPort);
-    MOZ_ASSERT(mPort->mDispatchRunnable == this);
-    mPort->mDispatchRunnable = nullptr;
-    mPort->Dispatch();
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD
-  Cancel() override
-  {
-    mPort = nullptr;
-    return NS_OK;
-  }
-
-private:
-  ~DispatchEventRunnable()
-  {}
-
-  RefPtr<MessagePort> mPort;
-};
-
-NS_IMPL_ISUPPORTS(DispatchEventRunnable, nsICancelableRunnable, nsIRunnable)
-
-class PostMessageRunnable final : public nsICancelableRunnable
-{
 public:
   NS_DECL_ISUPPORTS
 
@@ -97,6 +62,29 @@ public:
 
   NS_IMETHOD
   Run() override
+  {
+    MOZ_ASSERT(mPort);
+    MOZ_ASSERT(mPort->mPostMessageRunnable == this);
+
+    nsresult rv = DispatchMessage();
+
+    mPort->mPostMessageRunnable = nullptr;
+    mPort->Dispatch();
+
+    return rv;
+  }
+
+  NS_IMETHOD
+  Cancel() override
+  {
+    mPort = nullptr;
+    mData = nullptr;
+    return NS_OK;
+  }
+
+private:
+  nsresult
+  DispatchMessage() const
   {
     nsCOMPtr<nsIGlobalObject> globalObject;
 
@@ -116,7 +104,7 @@ public:
 
     JSContext* cx = jsapi.cx();
 
-    nsCOMPtr<nsPIDOMWindow> window =
+    nsCOMPtr<nsPIDOMWindowInner> window =
       do_QueryInterface(mPort->GetParentObject());
 
     ErrorResult rv;
@@ -133,10 +121,10 @@ public:
     RefPtr<MessageEvent> event =
       new MessageEvent(eventTarget, nullptr, nullptr);
 
-    event->InitMessageEvent(NS_LITERAL_STRING("message"),
+    event->InitMessageEvent(nullptr, NS_LITERAL_STRING("message"),
                             false /* non-bubbling */,
                             false /* cancelable */, value, EmptyString(),
-                            EmptyString(), nullptr);
+                            EmptyString(), nullptr, nullptr);
     event->SetTrusted(true);
     event->SetSource(mPort);
 
@@ -156,14 +144,6 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD
-  Cancel() override
-  {
-    mPort = nullptr;
-    mData = nullptr;
-    return NS_OK;
-  }
-
 private:
   ~PostMessageRunnable()
   {}
@@ -178,8 +158,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(MessagePort)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MessagePort,
                                                 DOMEventTargetHelper)
-  if (tmp->mDispatchRunnable) {
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mDispatchRunnable->mPort);
+  if (tmp->mPostMessageRunnable) {
+    NS_IMPL_CYCLE_COLLECTION_UNLINK(mPostMessageRunnable->mPort);
   }
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessages);
@@ -189,8 +169,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MessagePort,
                                                   DOMEventTargetHelper)
-  if (tmp->mDispatchRunnable) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDispatchRunnable->mPort);
+  if (tmp->mPostMessageRunnable) {
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPostMessageRunnable->mPort);
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUnshippedEntangledPort);
@@ -282,7 +262,7 @@ NS_IMPL_ISUPPORTS(ForceCloseHelper, nsIIPCBackgroundChildCreateCallback)
 
 } // namespace
 
-MessagePort::MessagePort(nsPIDOMWindow* aWindow)
+MessagePort::MessagePort(nsPIDOMWindowInner* aWindow)
   : DOMEventTargetHelper(aWindow)
   , mInnerID(0)
   , mMessageQueueEnabled(false)
@@ -300,7 +280,7 @@ MessagePort::~MessagePort()
 }
 
 /* static */ already_AddRefed<MessagePort>
-MessagePort::Create(nsPIDOMWindow* aWindow, const nsID& aUUID,
+MessagePort::Create(nsPIDOMWindowInner* aWindow, const nsID& aUUID,
                     const nsID& aDestinationUUID, ErrorResult& aRv)
 {
   RefPtr<MessagePort> mp = new MessagePort(aWindow);
@@ -310,7 +290,7 @@ MessagePort::Create(nsPIDOMWindow* aWindow, const nsID& aUUID,
 }
 
 /* static */ already_AddRefed<MessagePort>
-MessagePort::Create(nsPIDOMWindow* aWindow,
+MessagePort::Create(nsPIDOMWindowInner* aWindow,
                     const MessagePortIdentifier& aIdentifier,
                     ErrorResult& aRv)
 {
@@ -474,10 +454,10 @@ MessagePort::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
   MOZ_ASSERT(mActor);
   MOZ_ASSERT(mMessagesForTheOtherPort.IsEmpty());
 
-  nsAutoTArray<RefPtr<SharedMessagePortMessage>, 1> array;
+  AutoTArray<RefPtr<SharedMessagePortMessage>, 1> array;
   array.AppendElement(data);
 
-  nsAutoTArray<MessagePortMessage, 1> messages;
+  AutoTArray<MessagePortMessage, 1> messages;
   SharedMessagePortMessage::FromSharedToMessagesChild(mActor, array, messages);
   mActor->SendPostMessages(messages);
 }
@@ -496,7 +476,7 @@ MessagePort::Start()
 void
 MessagePort::Dispatch()
 {
-  if (!mMessageQueueEnabled || mMessages.IsEmpty() || mDispatchRunnable) {
+  if (!mMessageQueueEnabled || mMessages.IsEmpty() || mPostMessageRunnable) {
     return;
   }
 
@@ -548,13 +528,9 @@ MessagePort::Dispatch()
   RefPtr<SharedMessagePortMessage> data = mMessages.ElementAt(0);
   mMessages.RemoveElementAt(0);
 
-  RefPtr<PostMessageRunnable> runnable = new PostMessageRunnable(this, data);
+  mPostMessageRunnable = new PostMessageRunnable(this, data);
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable)));
-
-  mDispatchRunnable = new DispatchEventRunnable(this);
-
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(mDispatchRunnable)));
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(mPostMessageRunnable)));
 }
 
 void
@@ -966,7 +942,7 @@ MessagePort::RemoveDocFromBFCache()
     return;
   }
 
-  nsPIDOMWindow* window = GetOwner();
+  nsPIDOMWindowInner* window = GetOwner();
   if (!window) {
     return;
   }

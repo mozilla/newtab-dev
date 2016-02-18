@@ -44,7 +44,6 @@
 #include "nsXPCOM.h"
 #include "nsIDOMEventListener.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsIDOMWindow.h"
 #include "nsIVariant.h"
 #include "nsVariant.h"
 #include "nsIScriptError.h"
@@ -155,7 +154,7 @@ NS_IMPL_ISUPPORTS(nsXHRParseEndListener, nsIDOMEventListener)
 class nsResumeTimeoutsEvent : public nsRunnable
 {
 public:
-  explicit nsResumeTimeoutsEvent(nsPIDOMWindow* aWindow) : mWindow(aWindow) {}
+  explicit nsResumeTimeoutsEvent(nsPIDOMWindowInner* aWindow) : mWindow(aWindow) {}
 
   NS_IMETHOD Run()
   {
@@ -164,7 +163,7 @@ public:
   }
 
 private:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsPIDOMWindowInner> mWindow;
 };
 
 
@@ -307,16 +306,6 @@ nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
                        nsILoadGroup* aLoadGroup)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
-
-  if (nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobalObject)) {
-    if (win->IsOuterWindow()) {
-      // Must be bound to inner window, innerize if necessary.
-      nsCOMPtr<nsIGlobalObject> inner = do_QueryInterface(
-        win->GetCurrentInnerWindow());
-      aGlobalObject = inner.get();
-    }
-  }
-
   Construct(aPrincipal, aGlobalObject, aBaseURI, aLoadGroup);
   return NS_OK;
 }
@@ -518,7 +507,7 @@ nsXMLHttpRequest::GetChannel(nsIChannel **aChannel)
   return NS_OK;
 }
 
-static void LogMessage(const char* aWarning, nsPIDOMWindow* aWindow)
+static void LogMessage(const char* aWarning, nsPIDOMWindowInner* aWindow)
 {
   nsCOMPtr<nsIDocument> doc;
   if (aWindow) {
@@ -2573,7 +2562,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     httpChannel->GetRequestMethod(method); // If GET, method name will be uppercase
 
     if (!IsSystemXHR()) {
-      nsCOMPtr<nsPIDOMWindow> owner = GetOwner();
+      nsCOMPtr<nsPIDOMWindowInner> owner = GetOwner();
       nsCOMPtr<nsIDocument> doc = owner ? owner->GetExtantDoc() : nullptr;
       nsContentUtils::SetFetchReferrerURIWithPolicy(mPrincipal, doc,
                                                     httpChannel);
@@ -2768,22 +2757,27 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     AddLoadFlags(mChannel, nsIChannel::LOAD_EXPLICIT_CREDENTIALS);
   }
 
-  // When we are sync loading, we need to bypass the local cache when it would
-  // otherwise block us waiting for exclusive access to the cache.  If we don't
-  // do this, then we could dead lock in some cases (see bug 309424).
-  //
-  // Also don't block on the cache entry on async if it is busy - favoring parallelism
-  // over cache hit rate for xhr. This does not disable the cache everywhere -
-  // only in cases where more than one channel for the same URI is accessed
-  // simultanously.
+  // Bypass the network cache in cases where it makes no sense:
+  // POST responses are always unique, and we provide no API that would
+  // allow our consumers to specify a "cache key" to access old POST
+  // responses, so they are not worth caching.
+  if (method.EqualsLiteral("POST")) {
+    AddLoadFlags(mChannel,
+                 nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE |
+                 nsIRequest::INHIBIT_CACHING);
+  } else {
+    // When we are sync loading, we need to bypass the local cache when it would
+    // otherwise block us waiting for exclusive access to the cache.  If we don't
+    // do this, then we could dead lock in some cases (see bug 309424).
+    //
+    // Also don't block on the cache entry on async if it is busy - favoring parallelism
+    // over cache hit rate for xhr. This does not disable the cache everywhere -
+    // only in cases where more than one channel for the same URI is accessed
+    // simultanously.
 
-  AddLoadFlags(mChannel,
-               nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY);
-
-  // While it would be optimal to bypass the cache in case of POST requests
-  // since they are never cached, our ServiceWorker interception implementation
-  // on single-process systems is implemented via the HTTP cache, so DO NOT
-  // bypass the cache based on method!
+    AddLoadFlags(mChannel,
+                 nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY);
+  }
 
   // Since we expect XML data, set the type hint accordingly
   // if the channel doesn't know any content type.
@@ -2865,15 +2859,14 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     nsCOMPtr<nsIDocument> suspendedDoc;
     nsCOMPtr<nsIRunnable> resumeTimeoutRunnable;
     if (GetOwner()) {
-      if (nsCOMPtr<nsPIDOMWindow> topWindow = GetOwner()->GetOuterWindow()->GetTop()) {
-        if (topWindow &&
-            (topWindow = topWindow->GetCurrentInnerWindow())) {
+      if (nsCOMPtr<nsPIDOMWindowOuter> topWindow = GetOwner()->GetOuterWindow()->GetTop()) {
+        if (nsCOMPtr<nsPIDOMWindowInner> topInner = topWindow->GetCurrentInnerWindow()) {
           suspendedDoc = topWindow->GetExtantDoc();
           if (suspendedDoc) {
             suspendedDoc->SuppressEventHandling(nsIDocument::eEvents);
           }
           topWindow->SuspendTimeouts(1, false);
-          resumeTimeoutRunnable = new nsResumeTimeoutsEvent(topWindow);
+          resumeTimeoutRunnable = new nsResumeTimeoutsEvent(topInner);
         }
       }
     }
@@ -3466,7 +3459,7 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
     // Get the an auth prompter for our window so that the parenting
     // of the dialogs works as it should when using tabs.
 
-    nsCOMPtr<nsIDOMWindow> window;
+    nsCOMPtr<nsPIDOMWindowOuter> window;
     if (GetOwner()) {
       window = GetOwner()->GetOuterWindow();
     }
@@ -3815,8 +3808,8 @@ ArrayBufferBuilder::getArrayBuffer(JSContext* aCx)
     }
     mMapPtr = nullptr;
 
-    // The memory-mapped contents will be released when obj been finalized(GCed
-    // or neutered).
+    // The memory-mapped contents will be released when the ArrayBuffer becomes
+    // detached or is GC'd.
     return obj;
   }
 

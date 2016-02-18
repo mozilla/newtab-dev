@@ -361,11 +361,8 @@ function testShowNotification()
         if (i == (BG_NOTIFY_TESTS.length - 1)) {
           // Wait for any windows caught by the windowcatcher to close
           gWindowCatcher.finish(function () {
+            BrowserTestUtils.waitForNewTab(gBrowser).then(testNotificationURL);
             button.click();
-            gBrowser.selectedBrowser.addEventListener("load", function () {
-              gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-              testNotificationURL();
-            }, true);
           });
         } else {
           notifyBox.removeAllNotifications(true);
@@ -389,7 +386,7 @@ function testNotificationURL()
 {
   ok(true, "Test testNotificationURL: clicking the notification button " +
            "opened the url specified by the update");
-  let href = gBrowser.selectedBrowser.contentWindow.location.href;
+  let href = gBrowser.currentURI.spec;
   let expectedURL = BG_NOTIFY_TESTS[BG_NOTIFY_TESTS.length - 1].notificationURL;
   is(href, expectedURL, "The url opened from the notification should be the " +
      "url provided by the update");
@@ -408,7 +405,7 @@ function reloadUpdateManagerData()
 
 function writeUpdatesToXMLFile(aText)
 {
-  const PERMS_FILE = 0644;
+  const PERMS_FILE = 0o644;
 
   const MODE_WRONLY   = 0x02;
   const MODE_CREATE   = 0x08;

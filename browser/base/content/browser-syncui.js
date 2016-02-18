@@ -81,6 +81,14 @@ var gSyncUI = {
     let broadcaster = document.getElementById("sync-status");
     broadcaster.setAttribute("label", this._stringBundle.GetStringFromName("syncnow.label"));
 
+    // Initialize the Synced Tabs Sidebar
+    if (Services.prefs.getBoolPref("services.sync.syncedTabsUIRefresh")) {
+      let sidebarBroadcaster = document.getElementById("viewTabsSidebar");
+      sidebarBroadcaster.removeAttribute("hidden");
+    }
+
+    this.maybeMoveSyncedTabsButton();
+
     this.updateUI();
   },
 
@@ -326,6 +334,28 @@ var gSyncUI = {
     }
   },
 
+  /* After Sync is initialized we perform a once-only check for the sync
+     button being in "customize purgatory" and if so, move it to the panel.
+     This is done primarily for profiles created before SyncedTabs landed,
+     where the button defaulted to being in that purgatory.
+     We use a preference to ensure we only do it once, so people can still
+     customize it away and have it stick.
+  */
+  maybeMoveSyncedTabsButton() {
+    const prefName = "browser.migrated-sync-button";
+    let migrated = false;
+    try {
+      migrated = Services.prefs.getBoolPref(prefName);
+    } catch (_) {}
+    if (migrated) {
+      return;
+    }
+    if (!CustomizableUI.getPlacementOfWidget("sync-button")) {
+      CustomizableUI.addWidgetToArea("sync-button", CustomizableUI.AREA_PANEL);
+    }
+    Services.prefs.setBoolPref(prefName, true);
+  },
+
   /* Update the tooltip for the sync-status broadcaster (which will update the
      Sync Toolbar button and the Sync spinner in the FxA hamburger area.)
      If Sync is configured, the tooltip is when the last sync occurred,
@@ -362,7 +392,8 @@ var gSyncUI = {
       try {
         let lastSync = new Date(Services.prefs.getCharPref("services.sync.lastSync"));
         // Show the day-of-week and time (HH:MM) of last sync
-        let lastSyncDateString = lastSync.toLocaleFormat("%a %H:%M");
+        let lastSyncDateString = lastSync.toLocaleDateString(undefined,
+          {weekday: 'long', hour: 'numeric', minute: 'numeric'});
         tooltiptext = this._stringBundle.formatStringFromName("lastSync2.label", [lastSyncDateString], 1);
       }
       catch (e) {

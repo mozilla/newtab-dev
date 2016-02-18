@@ -5,14 +5,13 @@
 
 var { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 var { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-var { gDevTools } = Cu.import("resource://devtools/client/framework/gDevTools.jsm", {});
 var { console } = Cu.import("resource://gre/modules/Console.jsm", {});
 var { require } = Cu.import("resource://devtools/shared/Loader.jsm", {});
 
 var DevToolsUtils = require("devtools/shared/DevToolsUtils");
 DevToolsUtils.testing = true;
 DevToolsUtils.dumpn.wantLogging = true;
-DevToolsUtils.dumpv.wantLogging = true;
+DevToolsUtils.dumpv.wantVerbose = false;
 
 var { OS } = require("resource://gre/modules/osfile.jsm");
 var { FileUtils } = require("resource://gre/modules/FileUtils.jsm");
@@ -61,42 +60,6 @@ StubbedMemoryFront.prototype.startRecordingAllocations = expectState("attached",
 StubbedMemoryFront.prototype.stopRecordingAllocations = expectState("attached", Task.async(function* () {
   this.recordingAllocations = false;
 }));
-
-function waitUntilState (store, predicate) {
-  let deferred = promise.defer();
-  let unsubscribe = store.subscribe(check);
-
-  function check () {
-    if (predicate(store.getState())) {
-      unsubscribe();
-      deferred.resolve()
-    }
-  }
-
-  // Fire the check immediately incase the action has already occurred
-  check();
-
-  return deferred.promise;
-}
-
-function waitUntilAction (store, actionType) {
-  let deferred = promise.defer();
-  let unsubscribe = store.subscribe(check);
-  let history = store.history;
-  let index = history.length;
-
-  do_print(`Waiting for action "${actionType}"`);
-  function check () {
-    let action = history[index++];
-    if (action && action.type === actionType) {
-      do_print(`Found action "${actionType}"`);
-      unsubscribe();
-      deferred.resolve(store.getState());
-    }
-  }
-
-  return deferred.promise;
-}
 
 function waitUntilSnapshotState (store, expected) {
   let predicate = () => {

@@ -122,6 +122,14 @@ var WebProgressListener = {
     json.stateFlags = aStateFlags;
     json.status = aStatus;
 
+    // It's possible that this state change was triggered by
+    // loading an internal error page, for which the parent
+    // will want to know some details, so we'll update it with
+    // the documentURI.
+    if (aWebProgress && aWebProgress.isTopLevel) {
+      json.documentURI = content.document.documentURIObject.spec;
+    }
+
     this._send("Content:StateChange", json, objects);
   },
 
@@ -599,7 +607,7 @@ var outerWindowID = content.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils)
                            .outerWindowID;
 var initData = sendSyncMessage("Browser:Init", {outerWindowID: outerWindowID});
-if (initData.length) {
+if (initData.length && initData[0]) {
   docShell.useGlobalHistory = initData[0].useGlobalHistory;
   if (initData[0].initPopup) {
     setTimeout(() => AutoCompletePopup.init(), 0);

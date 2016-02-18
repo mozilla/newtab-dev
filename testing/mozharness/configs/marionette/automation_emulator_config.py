@@ -1,4 +1,6 @@
 # This is a template config file for marionette production.
+# TODO: This could be removed after B2G ICS emulator buildbot builds is turned
+#       off, Bug 1209180.
 import os
 
 
@@ -50,7 +52,7 @@ config = {
                 "--profile=%(profile)s",
                 "--symbols-path=%(symbols_path)s",
                 "--gecko-log=%(gecko_log)s",
-                "--xml-output=%(xml_output)s",
+                "--log-xunit=%(xml_output)s",
                 "--html-output=%(html_output)s",
                 "--log-raw=%(raw_log_file)s",
                 "--log-errorsummary=%(error_summary_file)s",
@@ -70,7 +72,7 @@ config = {
                 "--testvars=%(testvars)s",
                 "--profile=%(profile)s",
                 "--symbols-path=%(symbols_path)s",
-                "--xml-output=%(xml_output)s",
+                "--log-xunit=%(xml_output)s",
                 "--html-output=%(html_output)s",
                 "--log-raw=%(raw_log_file)s",
                 "--log-errorsummary=%(error_summary_file)s",

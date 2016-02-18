@@ -35,10 +35,18 @@ class GeckoInstance(object):
         "datareporting.policy.dataSubmissionEnabled": False,
         "datareporting.policy.dataSubmissionPolicyAccepted": False,
         "dom.ipc.reportProcessHangs": False,
+        # Only install add-ons from the profile and the application scope
+        # Also ensure that those are not getting disabled.
+        # see: https://developer.mozilla.org/en/Installing_extensions
+        "extensions.enabledScopes": 5,
+        "extensions.autoDisableScopes": 10,
         "focusmanager.testmode": True,
         "marionette.defaultPrefs.enabled": True,
         "startup.homepage_welcome_url": "about:blank",
         "toolkit.telemetry.enabled": False,
+        # Until Bug 1238095 is fixed, we have to enable CPOWs in order
+        # for Marionette tests to work properly.
+        "dom.ipc.cpows.forbid-unsafe-from-browser": False,
     }
 
     def __init__(self, host, port, bin, profile=None, addons=None,
@@ -201,11 +209,8 @@ class DesktopInstance(GeckoInstance):
         'browser.tabs.warnOnOpen': False,
         'browser.uitour.enabled': False,
         'dom.report_all_js_exceptions': True,
-        'extensions.enabledScopes': 5,
-        'extensions.autoDisableScopes': 10,
         'extensions.getAddons.cache.enabled': False,
         'extensions.installDistroAddons': False,
-        'extensions.logging.enabled': True,
         'extensions.showMismatchUI': False,
         'extensions.update.enabled': False,
         'extensions.update.notifyUser': False,

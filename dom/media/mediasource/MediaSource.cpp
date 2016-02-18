@@ -135,7 +135,7 @@ namespace dom {
 MediaSource::Constructor(const GlobalObject& aGlobal,
                          ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
@@ -392,7 +392,7 @@ MediaSource::Detach()
   mDecoder = nullptr;
 }
 
-MediaSource::MediaSource(nsPIDOMWindow* aWindow)
+MediaSource::MediaSource(nsPIDOMWindowInner* aWindow)
   : DOMEventTargetHelper(aWindow)
   , mDecoder(nullptr)
   , mPrincipal(nullptr)
@@ -487,27 +487,13 @@ MediaSource::NotifyEvicted(double aStart, double aEnd)
   mSourceBuffers->Evict(aStart, aEnd);
 }
 
-#if defined(DEBUG)
-void
-MediaSource::Dump(const char* aPath)
-{
-  char buf[255];
-  PR_snprintf(buf, sizeof(buf), "%s/mediasource-%p", aPath, this);
-  PR_MkDir(buf, 0700);
-
-  if (mSourceBuffers) {
-    mSourceBuffers->Dump(buf);
-  }
-}
-#endif
-
 void
 MediaSource::GetMozDebugReaderData(nsAString& aString)
 {
   mDecoder->GetMozDebugReaderData(aString);
 }
 
-nsPIDOMWindow*
+nsPIDOMWindowInner*
 MediaSource::GetParentObject() const
 {
   return GetOwner();

@@ -970,13 +970,24 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
   }
 
   if (aFlags & eDoAnimation) {
-    // Normally the animation manager has already added the correct
-    // style rule.  However, if the animation-name just changed, it
-    // might have been wrong.  So ask it to double-check based on the
-    // resulting style context.
+
     nsIStyleRule *oldAnimRule = GetAnimationRule(aRuleNode);
-    nsIStyleRule *animRule = PresContext()->AnimationManager()->
-      CheckAnimationRule(result, aElementForAnimation);
+    nsIStyleRule *animRule = nullptr;
+
+    // Ignore animations for print or print preview, and for elements
+    // that are not attached to the document tree.
+    if (PresContext()->IsDynamic() &&
+        aElementForAnimation->IsInComposedDoc()) {
+      // Update CSS animations in case the animation-name has just changed.
+      PresContext()->AnimationManager()->UpdateAnimations(result,
+                                                          aElementForAnimation);
+
+      animRule = PresContext()->EffectCompositor()->
+                   GetAnimationRule(aElementForAnimation,
+                                    result->GetPseudoType(),
+                                    EffectCompositor::CascadeLevel::Animations);
+    }
+
     MOZ_ASSERT(result->RuleNode() == aRuleNode,
                "unexpected rule node");
     MOZ_ASSERT(!result->GetStyleIfVisited() == !aVisitedRuleNode,
@@ -1025,7 +1036,7 @@ nsStyleSet::AddImportantRules(nsRuleNode* aCurrLevelNode,
   NS_ASSERTION(aCurrLevelNode &&
                aCurrLevelNode != aLastPrevLevelNode, "How did we get here?");
 
-  nsAutoTArray<nsIStyleRule*, 16> importantRules;
+  AutoTArray<nsIStyleRule*, 16> importantRules;
   for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
        node = node->GetParent()) {
     // We guarantee that we never walk the root node here, so no need
@@ -1523,7 +1534,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
 
   // This array can be hot and often grows to ~20 elements, so inline storage
   // is best.
-  nsAutoTArray<RuleNodeInfo, 30> rules;
+  AutoTArray<RuleNodeInfo, 30> rules;
   for (nsRuleNode* ruleNode = aOldRuleNode; !ruleNode->IsRoot();
        ruleNode = ruleNode->GetParent()) {
     RuleNodeInfo* curRule = rules.AppendElement();
@@ -1714,12 +1725,17 @@ nsStyleSet::ResolveStyleWithReplacement(Element* aElement,
       flags |= eDoAnimation;
     }
     elementForAnimation = aElement;
-    NS_ASSERTION(pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
-                 !elementForAnimation->GetPrimaryFrame() ||
-                 elementForAnimation->GetPrimaryFrame()->StyleContext()->
-                     GetPseudoType() ==
-                   nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                 "aElement should be the element and not the pseudo-element");
+#ifdef DEBUG
+    {
+      nsIFrame* styleFrame = nsLayoutUtils::GetStyleFrame(elementForAnimation);
+      NS_ASSERTION(pseudoType ==
+                     nsCSSPseudoElements::ePseudo_NotPseudoElement ||
+                   !styleFrame ||
+                   styleFrame->StyleContext()->GetPseudoType() ==
+                     nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                   "aElement should be the element and not the pseudo-element");
+    }
+#endif
   }
 
   if (aElement && aElement->IsRootOfAnonymousSubtree()) {
@@ -2474,7 +2490,7 @@ nsStyleSet::MediumFeaturesChanged()
 bool
 nsStyleSet::EnsureUniqueInnerOnCSSSheets()
 {
-  nsAutoTArray<CSSStyleSheet*, 32> queue;
+  AutoTArray<CSSStyleSheet*, 32> queue;
   for (SheetType type : gCSSSheetTypes) {
     for (CSSStyleSheet* sheet : mSheets[type]) {
       queue.AppendElement(sheet);

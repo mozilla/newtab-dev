@@ -2,7 +2,9 @@
 $inherits:
   from: 'tasks/tests/fx_desktop_generic.yml'
 task:
+  workerType: desktop-test-xlarge
   payload:
+    maxRunTime: 7200
     command:
       - --no-read-buildbot-config
       - --installer-url={{build_url}}
@@ -18,11 +20,11 @@ task:
           mozharness/configs/web_platform_tests/prod_config.py
           mozharness/configs/remove_executables.py
   metadata:
-    name: '[TC] Linux64 web-platform-tests-e10s {{chunk}}'
+    name: '[TC] Linux64 web-platform-tests-e10s-{{chunk}}'
     description: Web platform e10s tests run {{chunk}}
   extra:
     chunks:
-      total: 12
+      total: 8
     treeherder:
       groupName: Desktop web-platform-tests
       groupSymbol: tc-W-e10s

@@ -61,7 +61,7 @@ struct JSObjWrapperHasher
 
 namespace js {
 template <>
-struct DefaultGCPolicy<nsJSObjWrapper*> {
+struct GCPolicy<nsJSObjWrapper*> {
     static void trace(JSTracer* trc, nsJSObjWrapper** wrapper, const char* name) {
         MOZ_ASSERT(wrapper);
         MOZ_ASSERT(*wrapper);
@@ -1905,8 +1905,9 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
       // Reload entry if the JS_NewObject call caused a GC and reallocated
       // the table (see bug 445229). This is guaranteed to succeed.
 
-      NS_ASSERTION(sNPObjWrappers->Search(npobj),
-                   "Hashtable didn't find what we just added?");
+      entry =
+         static_cast<NPObjWrapperHashEntry*>(sNPObjWrappers->Search(npobj));
+      NS_ASSERTION(entry, "Hashtable didn't find what we just added?");
   }
 
   if (!obj) {

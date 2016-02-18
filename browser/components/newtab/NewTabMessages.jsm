@@ -42,7 +42,7 @@ let NewTabMessages = {
    * Return to the originator all newtabpage prefs. A point-to-point request.
    */
   handlePrefRequest(actionName, browser) {  // jshint unused:false
-    if (actionName in ACTIONS.prefs) {
+    if (ACTIONS.prefs.action_types.has(actionName)) {
       let results = NewTabPrefsProvider.prefs.newtabPagePrefs;
       NewTabWebChannel.send(ACTIONS.prefs.outPrefs, results, browser);
     }

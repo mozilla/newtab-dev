@@ -821,9 +821,17 @@ Accessible::XULElmName(DocAccessible* aDocument,
   nsIContent *bindingParent = aElm->GetBindingParent();
   nsIContent* parent =
     bindingParent? bindingParent->GetParent() : aElm->GetParent();
+  nsAutoString ancestorTitle;
   while (parent) {
     if (parent->IsXULElement(nsGkAtoms::toolbaritem) &&
-        parent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, aName)) {
+        parent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, ancestorTitle)) {
+      // Before returning this, check if the element itself has a tooltip:
+      if (aElm->GetAttr(kNameSpaceID_None, nsGkAtoms::tooltiptext, aName)) {
+        aName.CompressWhitespace();
+        return;
+      }
+
+      aName.Assign(ancestorTitle);
       aName.CompressWhitespace();
       return;
     }
@@ -885,20 +893,8 @@ Accessible::HandleAccEvent(AccEvent* aEvent)
     }
   }
 
-  nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
-  NS_ENSURE_TRUE(obsService, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsISimpleEnumerator> observers;
-  obsService->EnumerateObservers(NS_ACCESSIBLE_EVENT_TOPIC,
-                                 getter_AddRefs(observers));
-
-  NS_ENSURE_STATE(observers);
-
-  bool hasObservers = false;
-  observers->HasMoreElements(&hasObservers);
-  if (hasObservers) {
-    nsCOMPtr<nsIAccessibleEvent> event = MakeXPCEvent(aEvent);
-    return obsService->NotifyObservers(event, NS_ACCESSIBLE_EVENT_TOPIC, nullptr);
+  if (nsCoreUtils::AccEventObserversExist()) {
+    nsCoreUtils::DispatchAccEvent(MakeXPCEvent(aEvent));
   }
 
   return NS_OK;

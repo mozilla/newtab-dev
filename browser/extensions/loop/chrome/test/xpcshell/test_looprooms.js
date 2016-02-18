@@ -413,8 +413,8 @@ add_task(function* test_createRoom() {
 // Test if opening a new room window works correctly.
 add_task(function* test_openRoom() {
   let openedUrl;
-  Chat.open = function(contentWindow, origin, title, url) {
-    openedUrl = url;
+  Chat.open = function(contentWindow, options) {
+    openedUrl = options.url;
   };
 
   LoopRooms.open("fakeToken");
@@ -522,23 +522,8 @@ add_task(function* test_joinRoomGuest() {
   MozLoopServiceInternal.fxAOAuthProfile = null;
 
   let roomToken = "_nxD4V4FflQ";
-  let joinedData = yield LoopRooms.promise("join", roomToken);
+  let joinedData = yield LoopRooms.promise("join", roomToken, "guest");
   Assert.equal(joinedData.action, "join");
-});
-
-// Test if joining a room as FxA user works as expected.
-add_task(function* test_joinRoom() {
-  // We need these set up for getting the email address.
-  MozLoopServiceInternal.fxAOAuthTokenData = { token_type: "bearer" };
-  MozLoopServiceInternal.fxAOAuthProfile = { email: "fake@invalid.com" };
-
-  let roomToken = "_nxD4V4FflQ";
-  let joinedData = yield LoopRooms.promise("join", roomToken);
-  Assert.equal(joinedData.action, "join");
-  Assert.equal(joinedData.displayName, "fake@invalid.com");
-
-  MozLoopServiceInternal.fxAOAuthTokenData = null;
-  MozLoopServiceInternal.fxAOAuthProfile = null;
 });
 
 // Test if refreshing a room works as expected.

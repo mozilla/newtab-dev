@@ -9,6 +9,7 @@
 #include "builtin/SelfHostingDefines.h"
 #include "frontend/ParseNode.h"
 #include "frontend/SharedContext.h"
+#include "gc/Policy.h"
 #include "gc/Tracer.h"
 
 #include "jsobjinlines.h"
@@ -299,10 +300,10 @@ ModuleNamespaceObject::module()
     return GetProxyPrivate(this).toObject().as<ModuleObject>();
 }
 
-ArrayObject&
+JSObject&
 ModuleNamespaceObject::exports()
 {
-    ArrayObject* exports = module().namespaceExports();
+    JSObject* exports = module().namespaceExports();
     MOZ_ASSERT(exports);
     return *exports;
 }
@@ -381,7 +382,7 @@ ModuleNamespaceObject::ProxyHandler::preventExtensions(JSContext* cx, HandleObje
 bool
 ModuleNamespaceObject::ProxyHandler::getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy,
                                                               HandleId id,
-                                                              MutableHandle<JSPropertyDescriptor> desc) const
+                                                              MutableHandle<PropertyDescriptor> desc) const
 {
     Rooted<ModuleNamespaceObject*> ns(cx, &proxy->as<ModuleNamespaceObject>());
     if (JSID_IS_SYMBOL(id)) {
@@ -421,7 +422,7 @@ ModuleNamespaceObject::ProxyHandler::getOwnPropertyDescriptor(JSContext* cx, Han
 
 bool
 ModuleNamespaceObject::ProxyHandler::defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                                    Handle<JSPropertyDescriptor> desc,
+                                                    Handle<PropertyDescriptor> desc,
                                                     ObjectOpResult& result) const
 {
     return result.failReadOnly();
@@ -493,26 +494,21 @@ ModuleNamespaceObject::ProxyHandler::delete_(JSContext* cx, HandleObject proxy, 
 }
 
 bool
-ModuleNamespaceObject::ProxyHandler::enumerate(JSContext* cx, HandleObject proxy,
-                                               MutableHandleObject objp) const
-{
-    return BaseProxyHandler::enumerate(cx, proxy, objp);
-}
-
-bool
 ModuleNamespaceObject::ProxyHandler::ownPropertyKeys(JSContext* cx, HandleObject proxy,
                                                      AutoIdVector& props) const
 {
     Rooted<ModuleNamespaceObject*> ns(cx, &proxy->as<ModuleNamespaceObject>());
-    RootedArrayObject exports(cx, &ns->exports());
-    uint32_t count = exports->length();
-    if (!props.reserve(props.length() + count))
+    RootedObject exports(cx, &ns->exports());
+    uint32_t count;
+    if (!GetLengthProperty(cx, exports, &count) || !props.reserve(props.length() + count))
         return false;
 
-    for (uint32_t i = 0; i < count; i++) {
-        Value value = exports->getDenseElement(i);
-        props.infallibleAppend(AtomToId(&value.toString()->asAtom()));
-    }
+    Rooted<ValueVector> names(cx, ValueVector(cx));
+    if (!names.resize(count) || !GetElements(cx, exports, count, names.begin()))
+        return false;
+
+    for (uint32_t i = 0; i < count; i++)
+        props.infallibleAppend(AtomToId(&names[i].toString()->asAtom()));
 
     return true;
 }
@@ -586,6 +582,7 @@ ModuleObject::create(ExclusiveContext* cx, HandleObject enclosingStaticScope)
     IndirectBindingMap* bindings = zone->new_<IndirectBindingMap>(zone);
     if (!bindings || !bindings->init()) {
         ReportOutOfMemory(cx);
+        js_delete<IndirectBindingMap>(bindings);
         return nullptr;
     }
 
@@ -636,14 +633,14 @@ ModuleObject::importBindings()
     return *static_cast<IndirectBindingMap*>(getReservedSlot(ImportBindingsSlot).toPrivate());
 }
 
-ArrayObject*
+JSObject*
 ModuleObject::namespaceExports()
 {
     Value value = getReservedSlot(NamespaceExportsSlot);
     if (value.isUndefined())
         return nullptr;
 
-    return &value.toObject().as<ArrayObject>();
+    return &value.toObject();
 }
 
 IndirectBindingMap*
@@ -825,9 +822,10 @@ ModuleObject::evaluate(JSContext* cx, HandleModuleObject self, MutableHandleValu
 }
 
 /* static */ ModuleNamespaceObject*
-ModuleObject::createNamespace(JSContext* cx, HandleModuleObject self, HandleArrayObject exports)
+ModuleObject::createNamespace(JSContext* cx, HandleModuleObject self, HandleObject exports)
 {
     MOZ_ASSERT(!self->namespace_());
+    MOZ_ASSERT(exports->is<ArrayObject>() || exports->is<UnboxedArrayObject>());
 
     RootedModuleNamespaceObject ns(cx, ModuleNamespaceObject::create(cx, self));
     if (!ns)
@@ -837,6 +835,7 @@ ModuleObject::createNamespace(JSContext* cx, HandleModuleObject self, HandleArra
     IndirectBindingMap* bindings = zone->new_<IndirectBindingMap>(zone);
     if (!bindings || !bindings->init()) {
         ReportOutOfMemory(cx);
+        js_delete<IndirectBindingMap>(bindings);
         return nullptr;
     }
 

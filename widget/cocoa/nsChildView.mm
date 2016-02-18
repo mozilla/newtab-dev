@@ -53,6 +53,7 @@
 #include "Layers.h"
 #include "ClientLayerManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
+#include "GfxTexturesReporter.h"
 #include "GLTextureImage.h"
 #include "GLContextProvider.h"
 #include "GLContextCGL.h"
@@ -2964,14 +2965,13 @@ RectTextureImage::EndUpdate(bool aKeepSurface)
 {
   MOZ_ASSERT(mInUpdate, "Ending update while not in update");
 
-  bool overwriteTexture = false;
+  bool needInit = !mTexture;
   LayoutDeviceIntRegion updateRegion = mUpdateRegion;
-  if (!mTexture || (mTextureSize != mBufferSize)) {
-    overwriteTexture = true;
+  if (mTextureSize != mBufferSize) {
     mTextureSize = mBufferSize;
   }
 
-  if (overwriteTexture || !CanUploadSubtextures()) {
+  if (needInit || !CanUploadSubtextures()) {
     updateRegion =
       LayoutDeviceIntRect(LayoutDeviceIntPoint(0, 0), mTextureSize);
   }
@@ -2984,10 +2984,12 @@ RectTextureImage::EndUpdate(bool aKeepSurface)
   data += srcPoint.y * stride + srcPoint.x * bpp;
 
   UploadImageDataToTexture(mGLContext, data, stride, format,
-                           updateRegion.ToUnknownRegion(), mTexture,
-                           overwriteTexture, /* aPixelBuffer = */ false,
+                           updateRegion.ToUnknownRegion(), mTexture, nullptr,
+                           needInit, /* aPixelBuffer = */ false,
                            LOCAL_GL_TEXTURE0,
                            LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+
+
 
   if (!aKeepSurface) {
     mUpdateDrawTarget = nullptr;
@@ -3753,13 +3755,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   RefPtr<gfxContext> targetContext = new gfxContext(dt);
 
   // Set up the clip region.
-  LayoutDeviceIntRegion::RectIterator iter(region);
   targetContext->NewPath();
-  for (;;) {
-    const LayoutDeviceIntRect* r = iter.Next();
-    if (!r)
-      break;
-    targetContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
+  for (auto iter = region.RectIter(); !iter.Done(); iter.Next()) {
+    const LayoutDeviceIntRect& r = iter.Get();
+    targetContext->Rectangle(gfxRect(r.x, r.y, r.width, r.height));
   }
   targetContext->Clip();
 
@@ -4128,7 +4127,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
       uint32_t popupsToRollup = UINT32_MAX;
-      nsAutoTArray<nsIWidget*, 5> widgetChain;
+      AutoTArray<nsIWidget*, 5> widgetChain;
       uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
       for (uint32_t i = 0; i < widgetChain.Length(); i++) {
         nsIWidget* widget = widgetChain[i];
@@ -4632,13 +4631,8 @@ NewCGSRegionFromRegion(const LayoutDeviceIntRegion& aRegion,
                        CGRect (^aRectConverter)(const LayoutDeviceIntRect&))
 {
   nsTArray<CGRect> rects;
-  LayoutDeviceIntRegion::RectIterator iter(aRegion);
-  for (;;) {
-    const LayoutDeviceIntRect* r = iter.Next();
-    if (!r) {
-      break;
-    }
-    rects.AppendElement(aRectConverter(*r));
+  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
+    rects.AppendElement(aRectConverter(iter.Get()));
   }
 
   CGSRegionObj region;
@@ -4975,7 +4969,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
                                 ScrollWheelInput::SCROLLDELTA_PIXEL,
                                 position,
                                 preciseDelta.x,
-                                preciseDelta.y);
+                                preciseDelta.y,
+                                false);
     wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
     wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
     wheelEvent.mIsMomentum = nsCocoaUtils::IsMomentumScrollEvent(theEvent);
@@ -4990,7 +4985,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
                                 ScrollWheelInput::SCROLLDELTA_LINE,
                                 position,
                                 lineOrPageDeltaX,
-                                lineOrPageDeltaY);
+                                lineOrPageDeltaY,
+                                false);
     wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
     wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
     mGeckoChild->DispatchAPZWheelInputEvent(wheelEvent, false);

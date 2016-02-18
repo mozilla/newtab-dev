@@ -1158,6 +1158,20 @@
             throw new Error("Can only swap docshells between browsers in the same process.");
 
           // Give others a chance to swap state.
+          // IMPORTANT: Since a swapDocShells call does not swap the messageManager
+          //            instances attached to a browser to aOtherBrowser, others
+          //            will need to add the message listeners to the new
+          //            messageManager.
+          //            This is not a bug in swapDocShells or the FrameLoader,
+          //            merely a design decision: If message managers were swapped,
+          //            so that no new listeners were needed, the new
+          //            aOtherBrowser.messageManager would have listeners pointing
+          //            to the JS global of the current browser, which would rather
+          //            easily create leaks while swapping.
+          // IMPORTANT2: When the current browser element is removed from DOM,
+          //             which is quite common after a swpDocShells call, its
+          //             frame loader is destroyed, and that destroys the relevant
+          //             message manager, which will remove the listeners.
           let event = new CustomEvent("SwapDocShells", {"detail": aOtherBrowser});
           this.dispatchEvent(event);
           event = new CustomEvent("SwapDocShells", {"detail": this});
@@ -1199,7 +1213,7 @@
 
           var ourFieldValues = {};
           var otherFieldValues = {};
-          for (var field of fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             ourFieldValues[field] = this[field];
             otherFieldValues[field] = aOtherBrowser[field];
           }
@@ -1207,8 +1221,13 @@
           if (window.PopupNotifications)
             PopupNotifications._swapBrowserNotifications(aOtherBrowser, this);
 
-          this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
-              .swapFrameLoaders(aOtherBrowser);
+          try {
+            this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
+                .swapFrameLoaders(aOtherBrowser);
+          } catch(ex) {
+            // This may not be implemented for browser elements that are not
+            // attached to a BrowserDOMWindow.
+          }
 
           // Before we swap the actual docShell property we need to detach the
           // form fill controller from those docShells.
@@ -1217,7 +1236,7 @@
             aOtherBrowser.detachFormFill();
           }
 
-          for (var field of fieldsToSwap) {
+          for (let field of fieldsToSwap) {
             this[field] = otherFieldValues[field];
             aOtherBrowser[field] = ourFieldValues[field];
           }
@@ -1237,8 +1256,10 @@
             this._remoteWebNavigationImpl.swapBrowser(this);
             aOtherBrowser._remoteWebNavigationImpl.swapBrowser(aOtherBrowser);
 
-            this._remoteWebProgressManager.swapBrowser(this);
-            aOtherBrowser._remoteWebProgressManager.swapBrowser(aOtherBrowser);
+            if (this._remoteWebProgressManager && aOtherBrowser._remoteWebProgressManager) {
+              this._remoteWebProgressManager.swapBrowser(this);
+              aOtherBrowser._remoteWebProgressManager.swapBrowser(aOtherBrowser);
+            }
 
             if (this._remoteFinder)
               this._remoteFinder.swapBrowser(this);

@@ -16,6 +16,7 @@
 #include "mozilla/Services.h"
 #include "prprf.h"
 
+#include "gfxCrashReporterUtils.h"
 #include "gfxPlatform.h"
 #include "gfxPrefs.h"
 #include "gfxEnv.h"
@@ -195,14 +196,14 @@ public:
   explicit CrashStatsLogForwarder(const char* aKey);
   virtual void Log(const std::string& aString) override;
   virtual void CrashAction(LogReason aReason) override;
+  virtual bool UpdateStringsVector(const std::string& aString) override;
 
   virtual LoggingRecord LoggingRecordCopy() override;
 
   void SetCircularBufferSize(uint32_t aCapacity);
 
 private:
-  // Helpers for the Log()
-  bool UpdateStringsVector(const std::string& aString);
+  // Helper for the Log()
   void UpdateCrashReport();
 
 private:
@@ -270,8 +271,14 @@ CrashStatsLogForwarder::UpdateStringsVector(const std::string& aString)
 void CrashStatsLogForwarder::UpdateCrashReport()
 {
   std::stringstream message;
-  for(LoggingRecord::iterator it = mBuffer.begin(); it != mBuffer.end(); ++it) {
-    message << "|[" << Get<0>(*it) << "]" << Get<1>(*it) << " (t=" << Get<2>(*it) << ")";
+  if (XRE_IsParentProcess()) {
+    for(LoggingRecord::iterator it = mBuffer.begin(); it != mBuffer.end(); ++it) {
+      message << "|[" << Get<0>(*it) << "]" << Get<1>(*it) << " (t=" << Get<2>(*it) << ") ";
+    }
+  } else {
+    for(LoggingRecord::iterator it = mBuffer.begin(); it != mBuffer.end(); ++it) {
+      message << "|[C" << Get<0>(*it) << "]" << Get<1>(*it) << " (t=" << Get<2>(*it) << ") ";
+    }
   }
 
 #ifdef MOZ_CRASHREPORTER
@@ -286,12 +293,45 @@ void CrashStatsLogForwarder::UpdateCrashReport()
   }
 }
 
+class LogForwarderEvent : public nsRunnable
+{
+  virtual ~LogForwarderEvent() {}
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  explicit LogForwarderEvent(const nsCString& aMessage) : mMessage(aMessage) {}
+
+  NS_IMETHOD Run() override {
+    MOZ_ASSERT(NS_IsMainThread() && XRE_IsContentProcess());
+    dom::ContentChild* cc = dom::ContentChild::GetSingleton();
+    cc->SendGraphicsError(mMessage);
+    return NS_OK;
+  }
+
+protected:
+  nsCString mMessage;
+};
+
+NS_IMPL_ISUPPORTS_INHERITED0(LogForwarderEvent, nsRunnable);
+
 void CrashStatsLogForwarder::Log(const std::string& aString)
 {
   MutexAutoLock lock(mMutex);
 
   if (UpdateStringsVector(aString)) {
     UpdateCrashReport();
+  }
+
+  // Add it to the parent strings
+  if (!XRE_IsParentProcess()) {
+    nsCString stringToSend(aString.c_str());
+    if (NS_IsMainThread()) {
+      dom::ContentChild* cc = dom::ContentChild::GetSingleton();
+      cc->SendGraphicsError(stringToSend);
+    } else {
+      nsCOMPtr<nsIRunnable> r1 = new LogForwarderEvent(stringToSend);
+      NS_DispatchToMainThread(r1);
+    }
   }
 }
 
@@ -518,6 +558,44 @@ gfxPlatform::Init()
 
     auto fwd = new CrashStatsLogForwarder("GraphicsCriticalError");
     fwd->SetCircularBufferSize(gfxPrefs::GfxLoggingCrashLength());
+
+    // Drop a note in the crash report if we end up forcing an option that could
+    // destabilize things.  New items should be appended at the end (of an existing
+    // or in a new section), so that we don't have to know the version to interpret
+    // these cryptic strings.
+    {
+      nsAutoCString forcedPrefs;
+      // D2D prefs
+      forcedPrefs.AppendPrintf("FP(D%d%d%d",
+                               gfxPrefs::Direct2DDisabled(),
+                               gfxPrefs::Direct2DForceEnabled(),
+                               gfxPrefs::DirectWriteFontRenderingForceEnabled());
+      // Layers prefs
+      forcedPrefs.AppendPrintf("-L%d%d%d%d%d%d",
+                               gfxPrefs::LayersAMDSwitchableGfxEnabled(),
+                               gfxPrefs::LayersAccelerationDisabled(),
+                               gfxPrefs::LayersAccelerationForceEnabled(),
+                               gfxPrefs::LayersD3D11DisableWARP(),
+                               gfxPrefs::LayersD3D11ForceWARP(),
+                               gfxPrefs::LayersOffMainThreadCompositionForceEnabled());
+      // WebGL prefs
+      forcedPrefs.AppendPrintf("-W%d%d%d%d%d%d%d%d",
+                               gfxPrefs::WebGLANGLEForceD3D11(),
+                               gfxPrefs::WebGLANGLEForceWARP(),
+                               gfxPrefs::WebGLDisabled(),
+                               gfxPrefs::WebGLDisableANGLE(),
+                               gfxPrefs::WebGLDXGLEnabled(),
+                               gfxPrefs::WebGLForceEnabled(),
+                               gfxPrefs::WebGLForceLayersReadback(),
+                               gfxPrefs::WebGLForceMSAA());
+      // Prefs that don't fit into any of the other sections
+      forcedPrefs.AppendPrintf("-T%d%d%d%d) ",
+                               gfxPrefs::AndroidRGB16Force(),
+                               gfxPrefs::CanvasAzureAccelerated(),
+                               gfxPrefs::DisableGralloc(),
+                               gfxPrefs::ForceShmemTiles());
+      ScopedGfxFeatureReporter::AppNote(forcedPrefs);
+    }
 
     mozilla::gfx::Config cfg;
     cfg.mLogForwarder = fwd;
@@ -1965,8 +2043,8 @@ InitLayersAccelerationPrefs()
 #endif
         NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING,
                                                &status))) {
-      if (status == nsIGfxInfo::FEATURE_STATUS_OK) {
-        sLayersSupportsHardwareVideoDecoding = true;
+        if (status == nsIGfxInfo::FEATURE_STATUS_OK || gfxPrefs::HardwareVideoDecodingForceEnabled()) {
+           sLayersSupportsHardwareVideoDecoding = true;
       }
     }
 
@@ -2084,8 +2162,7 @@ gfxPlatform::UsesOffMainThreadCompositing()
     result =
       sPrefBrowserTabsRemoteAutostart ||
       gfxPrefs::LayersOffMainThreadCompositionEnabled() ||
-      gfxPrefs::LayersOffMainThreadCompositionForceEnabled() ||
-      gfxPrefs::LayersOffMainThreadCompositionTestingEnabled();
+      gfxPrefs::LayersOffMainThreadCompositionForceEnabled();
 #if defined(MOZ_WIDGET_GTK)
     // Linux users who chose OpenGL are being grandfathered in to OMTC
     result |= gfxPrefs::LayersAccelerationForceEnabled();

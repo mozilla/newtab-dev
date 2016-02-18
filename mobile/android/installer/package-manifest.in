@@ -1,3 +1,4 @@
+
 ; This Source Code Form is subject to the terms of the Mozilla Public
 ; License, v. 2.0. If a copy of the MPL was not distributed with this
 ; file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -78,7 +79,6 @@
 [xpcom]
 @BINPATH@/package-name.txt
 @BINPATH@/classes.dex
-@BINPATH@/distribution/*
 
 [browser]
 ; [Base Browser Files]
@@ -228,9 +228,8 @@
 @BINPATH@/components/toolkit_finalizationwitness.xpt
 @BINPATH@/components/toolkit_formautofill.xpt
 @BINPATH@/components/toolkit_osfile.xpt
-#ifdef NIGHTLY_BUILD
+@BINPATH@/components/toolkit_securityreporter.xpt
 @BINPATH@/components/toolkit_perfmonitoring.xpt
-#endif
 @BINPATH@/components/toolkit_xulstore.xpt
 @BINPATH@/components/toolkitprofile.xpt
 #ifdef MOZ_ENABLE_XREMOTE
@@ -433,6 +432,10 @@
 @BINPATH@/components/privatebrowsing.xpt
 @BINPATH@/components/PrivateBrowsing.manifest
 @BINPATH@/components/PrivateBrowsingTrackingProtectionWhitelist.js
+
+; Security Reports
+@BINPATH@/components/SecurityReporter.manifest
+@BINPATH@/components/SecurityReporter.js
 
 ; [Browser Chrome Files]
 @BINPATH@/chrome/toolkit@JAREXT@

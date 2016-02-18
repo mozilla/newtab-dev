@@ -537,7 +537,7 @@ public:
   enum ScrollDeltaType
   {
     // There are three kinds of scroll delta modes in Gecko: "page", "line" and
-    // "pixel". For apz, we currently only support the "line" and "pixel" modes.
+    // "pixel".
     SCROLLDELTA_LINE,
     SCROLLDELTA_PAGE,
     SCROLLDELTA_PIXEL
@@ -572,21 +572,23 @@ public:
                    ScrollDeltaType aDeltaType,
                    const ScreenPoint& aOrigin,
                    double aDeltaX,
-                   double aDeltaY)
-   : InputData(SCROLLWHEEL_INPUT, aTime, aTimeStamp, aModifiers),
-     mDeltaType(aDeltaType),
-     mScrollMode(aScrollMode),
-     mOrigin(aOrigin),
-     mHandledByAPZ(false),
-     mDeltaX(aDeltaX),
-     mDeltaY(aDeltaY),
-     mLineOrPageDeltaX(0),
-     mLineOrPageDeltaY(0),
-     mScrollSeriesNumber(0),
-     mUserDeltaMultiplierX(1.0),
-     mUserDeltaMultiplierY(1.0),
-     mMayHaveMomentum(false),
-     mIsMomentum(false)
+                   double aDeltaY,
+                   bool aAllowToOverrideSystemScrollSpeed)
+    : InputData(SCROLLWHEEL_INPUT, aTime, aTimeStamp, aModifiers)
+    , mDeltaType(aDeltaType)
+    , mScrollMode(aScrollMode)
+    , mOrigin(aOrigin)
+    , mHandledByAPZ(false)
+    , mDeltaX(aDeltaX)
+    , mDeltaY(aDeltaY)
+    , mLineOrPageDeltaX(0)
+    , mLineOrPageDeltaY(0)
+    , mScrollSeriesNumber(0)
+    , mUserDeltaMultiplierX(1.0)
+    , mUserDeltaMultiplierY(1.0)
+    , mMayHaveMomentum(false)
+    , mIsMomentum(false)
+    , mAllowToOverrideSystemScrollSpeed(aAllowToOverrideSystemScrollSpeed)
   {}
 
   explicit ScrollWheelInput(const WidgetWheelEvent& aEvent);
@@ -631,6 +633,7 @@ public:
 
   bool mMayHaveMomentum;
   bool mIsMomentum;
+  bool mAllowToOverrideSystemScrollSpeed;
 };
 
 } // namespace mozilla

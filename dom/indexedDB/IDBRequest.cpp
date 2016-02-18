@@ -38,8 +38,8 @@
 
 namespace mozilla {
 namespace dom {
-namespace indexedDB {
 
+using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::workers;
 using namespace mozilla::ipc;
 
@@ -65,7 +65,7 @@ IDBRequest::IDBRequest(IDBDatabase* aDatabase)
   InitMembers();
 }
 
-IDBRequest::IDBRequest(nsPIDOMWindow* aOwner)
+IDBRequest::IDBRequest(nsPIDOMWindowInner* aOwner)
   : IDBWrapperCache(aOwner)
 #ifdef DEBUG
   , mOwningThread(nullptr)
@@ -510,7 +510,7 @@ private:
 };
 
 IDBOpenDBRequest::IDBOpenDBRequest(IDBFactory* aFactory,
-                                   nsPIDOMWindow* aOwner,
+                                   nsPIDOMWindowInner* aOwner,
                                    bool aFileHandleDisabled)
   : IDBRequest(aOwner)
   , mFactory(aFactory)
@@ -530,7 +530,7 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 // static
 already_AddRefed<IDBOpenDBRequest>
 IDBOpenDBRequest::CreateForWindow(IDBFactory* aFactory,
-                                  nsPIDOMWindow* aOwner,
+                                  nsPIDOMWindowInner* aOwner,
                                   JS::Handle<JSObject*> aScriptOwner)
 {
   MOZ_ASSERT(aFactory);
@@ -660,6 +660,5 @@ WorkerFeature::Notify(JSContext* aCx, Status aStatus)
   return true;
 }
 
-} // namespace indexedDB
 } // namespace dom
 } // namespace mozilla

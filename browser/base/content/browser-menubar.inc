@@ -242,7 +242,9 @@
                               key="key_gotoHistory"
                               observes="viewHistorySidebar"
                               label="&historyButton.label;"/>
-
+                    <menuitem id="menu_tabsSidebar"
+                              observes="viewTabsSidebar"
+                              label="&syncedTabs.sidebar.label;"/>
                     <!-- Service providers with sidebars are inserted between these two menuseperators -->
                     <menuseparator hidden="true"/>
                     <menuseparator class="social-provider-menu" hidden="true"/>
@@ -449,6 +451,10 @@
                 class="show-only-for-keyboard"
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
+      <menuseparator/>
+      <menuitem label="&recentBookmarks.label;"
+                id="menu_recentBookmarks"
+                disabled="true"/>
       <menuseparator id="bookmarksToolbarSeparator"/>
       <menu id="bookmarksToolbarFolderMenu"
             class="menu-iconic bookmark-item"

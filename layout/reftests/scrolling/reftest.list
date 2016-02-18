@@ -1,7 +1,7 @@
 skip-if((B2G&&browserIsRemote)||Mulet) HTTP == deferred-anchor.xhtml#d deferred-anchor-ref.xhtml#d # Initial mulet triage: parity with B2G/B2G Desktop
 fuzzy-if(xulRuntime.widgetToolkit=="gtk3",1,23) == deferred-anchor2.xhtml deferred-anchor-ref.xhtml#d # bug 1182632
 HTTP == fixed-1.html fixed-1.html?ref
-HTTP == fixed-table-1.html fixed-table-1.html?ref
+fuzzy-if(skiaContent,1,30200) HTTP == fixed-table-1.html fixed-table-1.html?ref
 HTTP == fixed-opacity-1.html fixed-opacity-1.html?ref
 skip-if(B2G||Mulet) HTTP == fixed-opacity-2.html fixed-opacity-2.html?ref # Initial mulet triage: parity with B2G/B2G Desktop
 skip-if(B2G||Mulet) random-if(gtkWidget) fuzzy-if(Android,3,60) HTTP == fixed-text-1.html fixed-text-1.html?ref # Initial mulet triage: parity with B2G/B2G Desktop
@@ -19,6 +19,7 @@ skip-if(Android) pref(layout.css.scroll-behavior.enabled,true) pref(layout.css.s
 skip-if(Android) pref(layout.css.scroll-behavior.enabled,true) pref(layout.css.scroll-behavior.property-enabled,true) == scroll-behavior-7.html scroll-behavior-7.html?ref # see bug 1041833
 skip-if(Android) pref(layout.css.scroll-behavior.enabled,true) pref(layout.css.scroll-behavior.property-enabled,true) == scroll-behavior-8.html scroll-behavior-8.html?ref # see bug 1041833
 skip-if(Android) pref(layout.css.scroll-behavior.enabled,true) pref(layout.css.scroll-behavior.property-enabled,true) == scroll-behavior-9.html scroll-behavior-9.html?ref # see bug 1041833
+skip-if(Android) pref(layout.css.scroll-behavior.enabled,true) pref(layout.css.scroll-behavior.property-enabled,true) == scroll-behavior-10.html scroll-behavior-10.html?ref # see bug 1041833
 skip-if((B2G&&browserIsRemote)||Mulet) HTTP == simple-1.html simple-1.html?ref # Initial mulet triage: parity with B2G/B2G Desktop
 skip-if(B2G||Mulet) HTTP == subpixel-1.html#d subpixel-1-ref.html#d # Initial mulet triage: parity with B2G/B2G Desktop
 fuzzy-if(Android,4,120) HTTP == text-1.html text-1.html?ref

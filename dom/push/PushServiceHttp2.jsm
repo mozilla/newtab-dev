@@ -553,9 +553,7 @@ this.PushServiceHttp2 = {
 
   _ackMsgRecv: function(aAckUri) {
     console.debug("ackMsgRecv()", aAckUri);
-    // We can't do anything about it if it fails,
-    // so we don't listen for response.
-    this._deleteResource(aAckUri);
+    return this._deleteResource(aAckUri);
   },
 
   init: function(aOptions, aMainPushService, aServerURL) {
@@ -726,12 +724,15 @@ this.PushServiceHttp2 = {
       .then(record => this._subscribeResource(record)
         .then(recordNew => {
           if (this._mainPushService) {
-            this._mainPushService.updateRegistrationAndNotifyApp(aSubscriptionUri,
-                                                                 recordNew);
+            this._mainPushService
+                .updateRegistrationAndNotifyApp(aSubscriptionUri, recordNew)
+                .catch(Cu.reportError);
           }
         }, error => {
           if (this._mainPushService) {
-            this._mainPushService.dropRegistrationAndNotifyApp(aSubscriptionUri);
+            this._mainPushService
+                .dropRegistrationAndNotifyApp(aSubscriptionUri)
+                .catch(Cu.reportError);
           }
         })
       );

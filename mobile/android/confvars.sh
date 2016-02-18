@@ -93,6 +93,9 @@ MOZ_ANDROID_MLS_STUMBLER=1
 # Enable adding to the system downloads list.
 MOZ_ANDROID_DOWNLOADS_INTEGRATION=1
 
+# Build and package the install bouncer APK by default.
+MOZ_ANDROID_PACKAGE_INSTALL_BOUNCER=1
+
 # Use the low-memory GC tuning.
 export JS_GC_SMALL_CHUNK_SIZE=1
 
@@ -113,3 +116,9 @@ MOZ_ADDON_SIGNING=1
 # Note: The framework is always included in the app. This flag controls
 # usage of the framework.
 MOZ_SWITCHBOARD=1
+
+# Enable DLC background service and stop shipping fonts in Nightly
+if test "$NIGHTLY_BUILD"; then
+  MOZ_ANDROID_DOWNLOAD_CONTENT_SERVICE=1
+  MOZ_ANDROID_EXCLUDE_FONTS=1
+fi

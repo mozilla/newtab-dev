@@ -886,7 +886,7 @@ nsFrameMessageManager::PrivateNoteIntentionalCrash()
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::GetContent(nsIDOMWindow** aContent)
+nsFrameMessageManager::GetContent(mozIDOMWindowProxy** aContent)
 {
   *aContent = nullptr;
   return NS_OK;
@@ -1624,15 +1624,6 @@ nsMessageManagerScriptExecutor::DidCreateGlobal()
   }
 }
 
-static PLDHashOperator
-RemoveCachedScriptEntry(const nsAString& aKey,
-                        nsMessageManagerScriptHolder*& aData,
-                        void* aUserArg)
-{
-  delete aData;
-  return PL_DHASH_REMOVE;
-}
-
 // static
 void
 nsMessageManagerScriptExecutor::Shutdown()
@@ -1640,7 +1631,10 @@ nsMessageManagerScriptExecutor::Shutdown()
   if (sCachedScripts) {
     AutoSafeJSContext cx;
     NS_ASSERTION(sCachedScripts != nullptr, "Need cached scripts");
-    sCachedScripts->Enumerate(RemoveCachedScriptEntry, nullptr);
+    for (auto iter = sCachedScripts->Iter(); !iter.Done(); iter.Next()) {
+      delete iter.Data();
+      iter.Remove();
+    }
 
     delete sCachedScripts;
     sCachedScripts = nullptr;
@@ -1795,6 +1789,14 @@ nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
   AutoSafeJSContext cx;
   JS::Rooted<JSScript*> script(cx);
   TryCacheLoadAndCompileScript(aURL, aRunInGlobalScope, true, &script);
+}
+
+void
+nsMessageManagerScriptExecutor::Trace(const TraceCallbacks& aCallbacks, void* aClosure)
+{
+  for (size_t i = 0, length = mAnonymousGlobalScopes.Length(); i < length; ++i) {
+    aCallbacks.Trace(&mAnonymousGlobalScopes[i], "mAnonymousGlobalScopes[i]", aClosure);
+  }
 }
 
 bool

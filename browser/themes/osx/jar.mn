@@ -8,6 +8,9 @@ browser.jar:
   skin/classic/browser/sanitizeDialog.css
   skin/classic/browser/aboutSessionRestore-window-icon.png
   skin/classic/browser/aboutSyncTabs.css
+* skin/classic/browser/syncedtabs/sidebar.css          (syncedtabs/sidebar.css)
+  skin/classic/browser/syncedtabs/arrow-open.svg       (syncedtabs/arrow-open.svg)
+  skin/classic/browser/syncedtabs/arrow-closed.svg     (syncedtabs/arrow-closed.svg)
   skin/classic/browser/actionicon-tab.png
   skin/classic/browser/actionicon-tab@2x.png
 * skin/classic/browser/browser.css
@@ -81,7 +84,7 @@ browser.jar:
   skin/classic/browser/customizableui/customizeMode-separatorHorizontal.png  (customizableui/customizeMode-separatorHorizontal.png)
   skin/classic/browser/customizableui/customizeMode-separatorVertical.png  (customizableui/customizeMode-separatorVertical.png)
 * skin/classic/browser/customizableui/panelUIOverlay.css    (customizableui/panelUIOverlay.css)
-  skin/classic/browser/downloads/allDownloadsViewOverlay.css (downloads/allDownloadsViewOverlay.css)
+* skin/classic/browser/downloads/allDownloadsViewOverlay.css (downloads/allDownloadsViewOverlay.css)
   skin/classic/browser/downloads/buttons.png                (downloads/buttons.png)
   skin/classic/browser/downloads/buttons@2x.png             (downloads/buttons@2x.png)
   skin/classic/browser/downloads/download-glow-menuPanel.png (downloads/download-glow-menuPanel.png)
@@ -92,7 +95,7 @@ browser.jar:
   skin/classic/browser/downloads/download-notification-start@2x.png  (downloads/download-notification-start@2x.png)
   skin/classic/browser/downloads/download-summary.png       (downloads/download-summary.png)
   skin/classic/browser/downloads/download-summary@2x.png    (downloads/download-summary@2x.png)
-  skin/classic/browser/downloads/downloads.css              (downloads/downloads.css)
+* skin/classic/browser/downloads/downloads.css              (downloads/downloads.css)
   skin/classic/browser/feeds/subscribe.css                  (feeds/subscribe.css)
   skin/classic/browser/feeds/subscribe-ui.css               (feeds/subscribe-ui.css)
   skin/classic/browser/feeds/feedIcon.png                   (feeds/feedIcon.png)
@@ -238,14 +241,6 @@ browser.jar:
   skin/classic/browser/yosemite/reload-stop-go@2x.png                  (reload-stop-go-yosemite@2x.png)
   skin/classic/browser/yosemite/sync-horizontalbar.png                 (sync-horizontalbar-yosemite.png)
   skin/classic/browser/yosemite/sync-horizontalbar@2x.png              (sync-horizontalbar-yosemite@2x.png)
-  skin/classic/browser/yosemite/tab-selected-end-inactive.svg          (tabbrowser/tab-selected-end-yosemite-inactive.svg)
-  skin/classic/browser/yosemite/tab-selected-start-inactive.svg        (tabbrowser/tab-selected-start-yosemite-inactive.svg)
-  skin/classic/browser/yosemite/tab-active-middle-inactive.png         (tabbrowser/tab-active-middle-yosemite-inactive.png)
-  skin/classic/browser/yosemite/tab-active-middle-inactive@2x.png      (tabbrowser/tab-active-middle-yosemite-inactive@2x.png)
-  skin/classic/browser/yosemite/tab-stroke-end-inactive.png            (tabbrowser/tab-stroke-end-yosemite-inactive.png)
-  skin/classic/browser/yosemite/tab-stroke-end-inactive@2x.png         (tabbrowser/tab-stroke-end-yosemite-inactive@2x.png)
-  skin/classic/browser/yosemite/tab-stroke-start-inactive.png          (tabbrowser/tab-stroke-start-yosemite-inactive.png)
-  skin/classic/browser/yosemite/tab-stroke-start-inactive@2x.png       (tabbrowser/tab-stroke-start-yosemite-inactive@2x.png)
 #ifdef E10S_TESTING_ONLY
   skin/classic/browser/e10s-64@2x.png (../shared/e10s-64@2x.png)
 #endif
@@ -274,5 +269,5 @@ browser.jar:
 % override chrome://browser/skin/preferences/checkbox@2x.png               chrome://browser/skin/yosemite/preferences/checkbox@2x.png              os=Darwin osversion>=10.10
 % override chrome://browser/skin/reload-stop-go.png                        chrome://browser/skin/yosemite/reload-stop-go.png                       os=Darwin osversion>=10.10
 % override chrome://browser/skin/reload-stop-go@2x.png                     chrome://browser/skin/yosemite/reload-stop-go@2x.png                    os=Darwin osversion>=10.10
-% override chrome://browser/skin/sync-horizontalbar.png                    chrome://browser/skin/yosemite/sync-horizontalbar.png               os=Darwin osversion>=10.10
-% override chrome://browser/skin/sync-horizontalbar@2x.png                 chrome://browser/skin/yosemite/sync-horizontalbar@2x.png            os=Darwin osversion>=10.10
+% override chrome://browser/skin/sync-horizontalbar.png                    chrome://browser/skin/yosemite/sync-horizontalbar.png                   os=Darwin osversion>=10.10
+% override chrome://browser/skin/sync-horizontalbar@2x.png                 chrome://browser/skin/yosemite/sync-horizontalbar@2x.png                os=Darwin osversion>=10.10

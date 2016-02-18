@@ -6,6 +6,7 @@
 
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/Preferences.h"
+#include "nsContentUtils.h"
 #include "nsPrintfCString.h"
 #include "nsSize.h"
 #include "Layers.h"
@@ -341,7 +342,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   mInitDone = true;
   RefPtr<MetadataHolder> metadata = new MetadataHolder();
   metadata->mInfo = mInfo;
-  metadata->mTags = nullptr;
+  metadata->mTags = tags->Count() ? tags.release() : nullptr;
   mMetadataPromise.Resolve(metadata, __func__);
 }
 
@@ -794,7 +795,7 @@ MediaFormatReader::UpdateReceivedNewData(TrackType aTrack)
   bool hasLastEnd;
   media::TimeUnit lastEnd = decoder.mTimeRanges.GetEnd(&hasLastEnd);
   if (hasLastEnd) {
-    if (decoder.mLastTimeRangesEnd && decoder.mLastTimeRangesEnd.ref() > lastEnd) {
+    if (decoder.mLastTimeRangesEnd && decoder.mLastTimeRangesEnd.ref() < lastEnd) {
       // New data was added after our previous end, we can clear the EOS flag.
       decoder.mDemuxEOS = false;
     }
@@ -929,8 +930,8 @@ MediaFormatReader::HandleDemuxedSamples(TrackType aTrack,
         decoder.mQueuedSamples.AppendElements(Move(samples));
         NotifyDecodingRequested(aTrack);
       } else {
-        SeekTarget seekTarget =
-          decoder.mTimeThreshold.refOr(SeekTarget(TimeUnit::FromMicroseconds(sample->mTime), false));
+        InternalSeekTarget seekTarget =
+          decoder.mTimeThreshold.refOr(InternalSeekTarget(TimeUnit::FromMicroseconds(sample->mTime), false));
         LOG("Stream change occurred on a non-keyframe. Seeking to:%lld",
             seekTarget.mTime.ToMicroseconds());
         InternalSeek(aTrack, seekTarget);
@@ -968,7 +969,7 @@ MediaFormatReader::HandleDemuxedSamples(TrackType aTrack,
 }
 
 void
-MediaFormatReader::InternalSeek(TrackType aTrack, const SeekTarget& aTarget)
+MediaFormatReader::InternalSeek(TrackType aTrack, const InternalSeekTarget& aTarget)
 {
   MOZ_ASSERT(OnTaskQueue());
   auto& decoder = GetDecoderData(aTrack);
@@ -1058,7 +1059,7 @@ MediaFormatReader::Update(TrackType aTrack)
   // Drop any frames found prior our internal seek target.
   while (decoder.mTimeThreshold && decoder.mOutput.Length()) {
     RefPtr<MediaData>& output = decoder.mOutput[0];
-    SeekTarget target = decoder.mTimeThreshold.ref();
+    InternalSeekTarget target = decoder.mTimeThreshold.ref();
     media::TimeUnit time = media::TimeUnit::FromMicroseconds(output->mTime);
     if (time >= target.mTime) {
       // We have reached our internal seek target.
@@ -1112,10 +1113,12 @@ MediaFormatReader::Update(TrackType aTrack)
           // last sample decoded.
           LOG("Seeking to last sample time: %lld",
               decoder.mLastSampleTime.ref().ToMicroseconds());
-          InternalSeek(aTrack, SeekTarget(decoder.mLastSampleTime.ref(), true));
+          InternalSeek(aTrack, InternalSeekTarget(decoder.mLastSampleTime.ref(), true));
         }
-        LOG("Rejecting %s promise: WAITING_FOR_DATA", TrackTypeToStr(aTrack));
-        decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        if (!decoder.mReceivedNewData) {
+          LOG("Rejecting %s promise: WAITING_FOR_DATA", TrackTypeToStr(aTrack));
+          decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        }
       }
       // Now that draining has completed, we check if we have received
       // new data again as the result may now be different from the earlier
@@ -1403,11 +1406,11 @@ MediaFormatReader::OnVideoSkipFailed(MediaTrackDemuxer::SkipFailureHolder aFailu
 }
 
 RefPtr<MediaDecoderReader::SeekPromise>
-MediaFormatReader::Seek(int64_t aTime, int64_t aUnused)
+MediaFormatReader::Seek(SeekTarget aTarget, int64_t aUnused)
 {
   MOZ_ASSERT(OnTaskQueue());
 
-  LOG("aTime=(%lld)", aTime);
+  LOG("aTarget=(%lld)", aTarget.GetTime().ToMicroseconds());
 
   MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty());
   MOZ_DIAGNOSTIC_ASSERT(!mVideo.HasPromise());
@@ -1425,8 +1428,8 @@ MediaFormatReader::Seek(int64_t aTime, int64_t aUnused)
     return SeekPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
   }
 
-  mOriginalSeekTime = Some(media::TimeUnit::FromMicroseconds(aTime));
-  mPendingSeekTime = mOriginalSeekTime;
+  mOriginalSeekTarget = Some(aTarget);
+  mPendingSeekTime = Some(aTarget.GetTime());
 
   RefPtr<SeekPromise> p = mSeekPromise.Ensure(__func__);
 
@@ -1470,8 +1473,8 @@ MediaFormatReader::OnSeekFailed(TrackType aTrack, DemuxerFailureReason aResult)
 
   if (aResult == DemuxerFailureReason::WAITING_FOR_DATA) {
     if (HasVideo() && aTrack == TrackType::kAudioTrack &&
-        mOriginalSeekTime.isSome() &&
-        mPendingSeekTime.ref() != mOriginalSeekTime.ref()) {
+        mOriginalSeekTarget.isSome() &&
+        mPendingSeekTime.ref() != mOriginalSeekTarget.ref().GetTime()) {
       // We have failed to seek audio where video seeked to earlier.
       // Attempt to seek instead to the closest point that we know we have in
       // order to limit A/V sync discrepency.
@@ -1487,11 +1490,11 @@ MediaFormatReader::OnSeekFailed(TrackType aTrack, DemuxerFailureReason aResult)
         }
       }
       if (nextSeekTime.isNothing() ||
-          nextSeekTime.ref() > mOriginalSeekTime.ref()) {
-        nextSeekTime = mOriginalSeekTime;
+          nextSeekTime.ref() > mOriginalSeekTarget.ref().GetTime()) {
+        nextSeekTime = Some(mOriginalSeekTarget.ref().GetTime());
         LOG("Unable to seek audio to video seek time. A/V sync may be broken");
       } else {
-        mOriginalSeekTime.reset();
+        mOriginalSeekTarget.reset();
       }
       mPendingSeekTime = nextSeekTime;
       DoAudioSeek();
@@ -1525,12 +1528,16 @@ MediaFormatReader::OnVideoSeekCompleted(media::TimeUnit aTime)
   mVideo.mSeekRequest.Complete();
 
   if (HasAudio()) {
-    MOZ_ASSERT(mPendingSeekTime.isSome());
-    mPendingSeekTime = Some(aTime);
+    MOZ_ASSERT(mPendingSeekTime.isSome() && mOriginalSeekTarget.isSome());
+    if (mOriginalSeekTarget.ref().IsFast()) {
+      // We are performing a fast seek. We need to seek audio to where the
+      // video seeked to, to ensure proper A/V sync once playback resume.
+      mPendingSeekTime = Some(aTime);
+    }
     DoAudioSeek();
   } else {
     mPendingSeekTime.reset();
-    mSeekPromise.Resolve(aTime.ToMicroseconds(), __func__);
+    mSeekPromise.Resolve(aTime, __func__);
   }
 }
 
@@ -1553,7 +1560,7 @@ MediaFormatReader::OnAudioSeekCompleted(media::TimeUnit aTime)
   LOGV("Audio seeked to %lld", aTime.ToMicroseconds());
   mAudio.mSeekRequest.Complete();
   mPendingSeekTime.reset();
-  mSeekPromise.Resolve(aTime.ToMicroseconds(), __func__);
+  mSeekPromise.Resolve(aTime, __func__);
 }
 
 media::TimeIntervals
@@ -1567,15 +1574,12 @@ MediaFormatReader::GetBuffered()
   if (!mInitDone) {
     return intervals;
   }
-  int64_t startTime;
+  int64_t startTime = 0;
   if (!ForceZeroStartTime()) {
     if (!HaveStartTime()) {
       return intervals;
     }
     startTime = StartTime();
-  } else {
-    // MSE, start time is assumed to be 0 we can proceeed with what we have.
-    startTime = 0;
   }
   // Ensure we have up to date buffered time range.
   if (HasVideo()) {
@@ -1598,6 +1602,11 @@ MediaFormatReader::GetBuffered()
     intervals = Move(videoti);
   }
 
+  if (!intervals.Length() ||
+      intervals.GetStart() == media::TimeUnit::FromMicroseconds(0)) {
+    // IntervalSet already starts at 0 or is empty, nothing to shift.
+    return intervals;
+  }
   return intervals.Shift(media::TimeUnit::FromMicroseconds(-startTime));
 }
 

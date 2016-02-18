@@ -118,6 +118,7 @@ public:
   static already_AddRefed<gfxShmSharedReadLock>
   Open(mozilla::layers::ISurfaceAllocator* aAllocator, const mozilla::layers::ShmemSection& aShmemSection)
   {
+    MOZ_RELEASE_ASSERT(aShmemSection.shmem().IsReadable());
     RefPtr<gfxShmSharedReadLock> readLock = new gfxShmSharedReadLock(aAllocator, aShmemSection);
     return readLock.forget();
   }
@@ -626,9 +627,6 @@ public:
     LOW_PRECISION_TILED_BUFFER
   };
   virtual void UpdatedBuffer(TiledBufferType aType) = 0;
-
-  virtual bool SupportsLayerSize(const gfx::IntSize& aSize, ClientLayerManager* aManager) const
-  { return true; }
 
 private:
   const char* mName;

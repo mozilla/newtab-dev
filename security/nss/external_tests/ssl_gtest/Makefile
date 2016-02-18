@@ -25,7 +25,13 @@ include $(CORE_DEPTH)/coreconf/config.mk
 # (4) Include "local" platform-dependent assignments (OPTIONAL).      #
 #######################################################################
 
-include ../../cmd/platlibs.mk
+include ../common/gtest.mk
+
+CFLAGS += -I$(CORE_DEPTH)/lib/ssl
+
+ifdef NSS_SSL_ENABLE_ZLIB
+include $(CORE_DEPTH)/coreconf/zlib.mk
+endif
 
 #######################################################################
 # (5) Execute "global" rules. (OPTIONAL)                              #
@@ -41,20 +47,3 @@ include $(CORE_DEPTH)/coreconf/rules.mk
 #######################################################################
 # (7) Execute "local" rules. (OPTIONAL).                              #
 #######################################################################
-
-MKPROG = $(CCC)
-CFLAGS += -I$(CORE_DEPTH)/lib/ssl
-
-include ../../cmd/platrules.mk
-
-ifeq (WINNT,$(OS_ARCH))
-    # -EHsc because gtest has exception handlers
-    OS_CFLAGS += -EHsc -nologo
-    # http://www.suodenjoki.dk/us/archive/2010/min-max.htm
-    OS_CFLAGS += -DNOMINMAX
-
-    # Linking to winsock to get htonl
-    OS_LIBS += Ws2_32.lib
-else
-    CXXFLAGS += -std=c++0x
-endif

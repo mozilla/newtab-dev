@@ -17,6 +17,7 @@
 #include "jswrapper.h"
 
 #include "gc/Marking.h"
+#include "gc/Policy.h"
 #include "jit/JitCompartment.h"
 #include "jit/JitOptions.h"
 #include "js/Date.h"
@@ -63,7 +64,7 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     lastAnimationTime(0),
     regExps(runtime_),
     globalWriteBarriered(false),
-    neuteredTypedObjects(0),
+    detachedTypedObjects(0),
     objectMetadataState(ImmediateMetadata()),
     propertyTree(thisForCtor()),
     selfHostingScriptSource(nullptr),
@@ -672,7 +673,7 @@ JSCompartment::sweepInnerViews()
 void
 JSCompartment::sweepSavedStacks()
 {
-    savedStacks_.sweep(runtimeFromAnyThread());
+    savedStacks_.sweep();
 }
 
 void
@@ -1080,8 +1081,9 @@ JSCompartment::clearScriptCounts()
     // Clear all hasScriptCounts_ flags of JSScript, in order to release all
     // ScriptCounts entry of the current compartment.
     for (ScriptCountsMap::Range r = scriptCountsMap->all(); !r.empty(); r.popFront()) {
-        ScriptCounts* value = &r.front().value();
+        ScriptCounts* value = r.front().value();
         r.front().key()->takeOverScriptCountsMapEntry(value);
+        js_delete(value);
     }
 
     js_delete(scriptCountsMap);
@@ -1111,7 +1113,9 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                       size_t* crossCompartmentWrappersArg,
                                       size_t* regexpCompartment,
                                       size_t* savedStacksSet,
-                                      size_t* nonSyntacticLexicalScopesArg)
+                                      size_t* nonSyntacticLexicalScopesArg,
+                                      size_t* jitCompartment,
+                                      size_t* privateData)
 {
     *compartmentObject += mallocSizeOf(this);
     objectGroups.addSizeOfExcludingThis(mallocSizeOf, tiAllocationSiteTables,
@@ -1129,6 +1133,12 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
     *savedStacksSet += savedStacks_.sizeOfExcludingThis(mallocSizeOf);
     if (nonSyntacticLexicalScopes_)
         *nonSyntacticLexicalScopesArg += nonSyntacticLexicalScopes_->sizeOfIncludingThis(mallocSizeOf);
+    if (jitCompartment_)
+        *jitCompartment += jitCompartment_->sizeOfIncludingThis(mallocSizeOf);
+
+    auto callback = runtime_->sizeOfIncludingThisCompartmentCallback;
+    if (callback)
+        *privateData += callback(mallocSizeOf, this);
 }
 
 void

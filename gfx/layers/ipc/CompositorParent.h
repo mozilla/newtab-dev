@@ -25,6 +25,7 @@
 #include "mozilla/Monitor.h"            // for Monitor
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/TimeStamp.h"          // for TimeStamp
+#include "mozilla/dom/ipc/IdType.h"
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/layers/GeckoContentController.h"
@@ -54,6 +55,7 @@ class Compositor;
 class CompositorParent;
 class LayerManagerComposite;
 class LayerTransactionParent;
+class PAPZParent;
 
 struct ScopedLayerTreeRegistration
 {
@@ -283,7 +285,7 @@ public:
 
   static void SetShadowProperties(Layer* aLayer);
 
-  void NotifyChildCreated(const uint64_t& aChild);
+  void NotifyChildCreated(uint64_t aChild);
 
   void AsyncRender();
 
@@ -447,6 +449,20 @@ public:
 
   void ForceComposeToTarget(gfx::DrawTarget* aTarget, const gfx::IntRect* aRect = nullptr);
 
+  /**
+   * Creates a new RemoteContentController for aTabId. Should only be called on
+   * the main thread.
+   *
+   * aLayersId The layers id for the browser corresponding to aTabId.
+   * aContentParent The ContentParent for the process that the TabChild for
+   *                aTabId lives in.
+   * aBrowserParent The toplevel TabParent for aTabId.
+   */
+  static bool UpdateRemoteContentController(uint64_t aLayersId,
+                                            dom::ContentParent* aContentParent,
+                                            const dom::TabId& aTabId,
+                                            dom::TabParent* aBrowserParent);
+
 protected:
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~CompositorParent();
@@ -529,6 +545,9 @@ protected:
   // indicates if plugin window visibility and metric updates are currently
   // being defered due to a scroll operation.
   bool mDeferPluginWindows;
+  // indicates if the plugin windows were hidden, and need to be made
+  // visible again even if their geometry has not changed.
+  bool mPluginWindowsHidden;
 #endif
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);

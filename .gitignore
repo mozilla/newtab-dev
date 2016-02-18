@@ -10,6 +10,9 @@ ID
 .DS_Store*
 *.pdb
 
+# Allow the id locale directory for loop ('ID' matches this normally)
+!browser/extensions/loop/chrome/locale/id
+
 # Vim swap files.
 .*.sw[a-z]
 
@@ -50,6 +53,16 @@ parser/html/java/javaparser/
 .project
 .cproject
 .settings/
+
+# Ignore the files and directory that JetBrains IDEs create.
+/.idea/
+*.iml
+
+# Gradle cache.
+/.gradle/
+
+# Local Gradle configuration properties.
+/local.properties
 
 # Python virtualenv artifacts.
 python/psutil/**/*.so

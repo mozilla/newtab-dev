@@ -63,6 +63,7 @@ flags:
     web-platform-tests: /web-platform-tests.*/
     web-platform-tests-e10s: /web-platform-tests-e10s.*/
     web-platform-tests-reftests: /web-platform-tests-reftests.*/
+    web-platform-tests-reftests-e10s: /web-platform-tests-reftests-e10s.*/
     xpcshell: /xpcshell.*/
 
   builds:
@@ -98,6 +99,7 @@ flags:
     - aries-dogfood
     - aries-noril
     - android-api-15
+    - android-api-15-frontend
     - android-partner-sample1
     - android-b2gdroid
     - linux
@@ -105,7 +107,6 @@ flags:
     - linux64-st-an
     - macosx64
     - macosx64-st-an
-    - eslint-gecko
 
   tests:
     - cppunit
@@ -152,5 +153,6 @@ flags:
     - web-platform-tests
     - web-platform-tests-e10s
     - web-platform-tests-reftests
+    - web-platform-tests-reftests-e10s
     - xpcshell
 

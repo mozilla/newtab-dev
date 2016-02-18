@@ -389,9 +389,9 @@ js::RunScript(JSContext* cx, RunState& state)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-#if defined(NIGHTLY_BUILD) && defined(MOZ_HAVE_RDTSC)
+#if defined(MOZ_HAVE_RDTSC)
     js::AutoStopwatch stopwatch(cx);
-#endif // defined(NIGHTLY_BUILD) && defined(MOZ_HAVE_RDTSC)
+#endif // defined(MOZ_HAVE_RDTSC)
 
     SPSEntryMarker marker(cx->runtime(), state.script());
 
@@ -593,7 +593,7 @@ ConstructFromStack(JSContext* cx, const CallArgs& args)
 
 bool
 js::Construct(JSContext* cx, HandleValue fval, const ConstructArgs& args, HandleValue newTarget,
-              MutableHandleValue rval)
+              MutableHandleObject objp)
 {
     args.setCallee(fval);
     args.setThis(MagicValue(JS_IS_CONSTRUCTING));
@@ -601,7 +601,8 @@ js::Construct(JSContext* cx, HandleValue fval, const ConstructArgs& args, Handle
     if (!InternalConstruct(cx, args))
         return false;
 
-    rval.set(args.rval());
+    MOZ_ASSERT(args.rval().isObject());
+    objp.set(&args.rval().toObject());
     return true;
 }
 
@@ -1481,11 +1482,11 @@ class ReservedRooted : public ReservedRootedBase<T>
     }
 
     explicit ReservedRooted(Rooted<T>* root) : savedRoot(root) {
-        *root = js::GCMethods<T>::initial();
+        *root = js::GCPolicy<T>::initial();
     }
 
     ~ReservedRooted() {
-        *savedRoot = js::GCMethods<T>::initial();
+        *savedRoot = js::GCPolicy<T>::initial();
     }
 
     void set(const T& p) const { *savedRoot = p; }
@@ -4081,6 +4082,10 @@ js::GetScopeName(JSContext* cx, HandleObject scopeChain, HandlePropertyName name
     if (!GetProperty(cx, obj, obj, name, vp))
         return false;
 
+    // We do our own explicit checking for |this|
+    if (name == cx->names().dotThis)
+        return true;
+
     // See note in FetchName.
     return CheckUninitializedLexical(cx, name, vp);
 }
@@ -4577,8 +4582,10 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
         if (!GetElements(cx, aobj, length, cargs.array()))
             return false;
 
-        if (!Construct(cx, callee, cargs, newTarget, res))
+        RootedObject obj(cx);
+        if (!Construct(cx, callee, cargs, newTarget, &obj))
             return false;
+        res.setObject(*obj);
     } else {
         InvokeArgs args(cx);
 
@@ -4876,16 +4883,29 @@ js::ReportRuntimeRedeclaration(JSContext* cx, HandlePropertyName name,
 bool
 js::ThrowUninitializedThis(JSContext* cx, AbstractFramePtr frame)
 {
-    RootedFunction fun(cx, frame.callee());
-
-    const char* name = "anonymous";
-    JSAutoByteString str;
-    if (fun->atom()) {
-        if (!AtomToPrintableString(cx, fun->atom(), &str))
-            return false;
-        name = str.ptr();
+    RootedFunction fun(cx);
+    if (frame.isFunctionFrame()) {
+        fun = frame.callee();
+    } else {
+        MOZ_ASSERT(frame.isEvalFrame());
+        MOZ_ASSERT(frame.script()->isDirectEvalInFunction());
+        fun = frame.script()->getCallerFunction();
     }
 
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNINITIALIZED_THIS, name);
+    if (fun->isDerivedClassConstructor()) {
+        const char* name = "anonymous";
+        JSAutoByteString str;
+        if (fun->atom()) {
+            if (!AtomToPrintableString(cx, fun->atom(), &str))
+                return false;
+            name = str.ptr();
+        }
+
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNINITIALIZED_THIS, name);
+        return false;
+    }
+
+    MOZ_ASSERT(fun->isArrow());
+    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNINITIALIZED_THIS_ARROW);
     return false;
 }

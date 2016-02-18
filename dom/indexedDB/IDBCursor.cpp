@@ -24,7 +24,8 @@
 
 namespace mozilla {
 namespace dom {
-namespace indexedDB {
+
+using namespace indexedDB;
 
 IDBCursor::IDBCursor(Type aType,
                      BackgroundCursorChild* aBackgroundActor,
@@ -261,7 +262,7 @@ IDBCursor::Reset()
   mContinueCalled = false;
 }
 
-nsPIDOMWindow*
+nsPIDOMWindowInner*
 IDBCursor::GetParentObject() const
 {
   AssertIsOnOwningThread();
@@ -896,6 +897,5 @@ IDBCursor::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
   }
 }
 
-} // namespace indexedDB
 } // namespace dom
 } // namespace mozilla

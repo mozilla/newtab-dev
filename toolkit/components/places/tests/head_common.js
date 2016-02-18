@@ -118,7 +118,7 @@ function DBConn(aForceNewConnection) {
   }
 
   return gDBConn.connectionReady ? gDBConn : null;
-};
+}
 
 /**
  * Reads data from the provided inputstream.
@@ -385,10 +385,10 @@ var shutdownPlaces = function() {
     Services.obs.addObserver(resolve, "places-connection-closed", false);
   });
   let hs = PlacesUtils.history.QueryInterface(Ci.nsIObserver);
-  hs.observe(null, "test-simulate-places-shutdown-phase-1", null);
-  do_print("shutdownPlaces: sent test-simulate-places-shutdown-phase-1");
-  hs.observe(null, "test-simulate-places-shutdown-phase-2", null);
-  do_print("shutdownPlaces: sent test-simulate-places-shutdown-phase-2");
+  hs.observe(null, "profile-change-teardown", null);
+  do_print("shutdownPlaces: sent profile-change-teardown");
+  hs.observe(null, "test-simulate-places-shutdown", null);
+  do_print("shutdownPlaces: sent test-simulate-places-shutdown");
   return promise.then(() => {
     do_print("shutdownPlaces: complete");
   });
@@ -534,9 +534,12 @@ function check_JSON_backup(aIsAutomaticBackup) {
  */
 function frecencyForUrl(aURI)
 {
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec
-                                      : aURI instanceof URL ? aURI.href
-                                                            : aURI;
+  let url = aURI;
+  if (aURI instanceof Ci.nsIURI) {
+    url = aURI.spec;
+  } else if (aURI instanceof URL) {
+    url = aURI.href;
+  }
   let stmt = DBConn().createStatement(
     "SELECT frecency FROM moz_places WHERE url = ?1"
   );

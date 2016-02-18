@@ -6,7 +6,7 @@
 
 const { Cu } = require("chrome");
 Cu.import("resource://gre/modules/Services.jsm");
-const { gDevTools } = require("resource://devtools/client/framework/gDevTools.jsm");
+const { gDevTools } = require("devtools/client/framework/devtools");
 
 const { defaultTools, defaultThemes } = require("devtools/client/definitions");
 
@@ -27,7 +27,7 @@ Object.defineProperty(exports, "TargetFactory", {
 });
 
 const unloadObserver = {
-  observe: function(subject, topic, data) {
+  observe: function(subject) {
     if (subject.wrappedJSObject === require("@loader/unload")) {
       Services.obs.removeObserver(unloadObserver, "sdk:loader:destroy");
       for (let definition of gDevTools.getToolDefinitionArray()) {

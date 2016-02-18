@@ -2679,7 +2679,11 @@ ObjectGroup::addDefiniteProperties(ExclusiveContext* cx, Shape* shape)
             MOZ_ASSERT_IF(shape->slot() >= shape->numFixedSlots(),
                           shape->numFixedSlots() == NativeObject::MAX_FIXED_SLOTS);
             TypeSet* types = getProperty(cx, nullptr, id);
-            if (types && types->canSetDefinite(shape->slot()))
+            if (!types) {
+                MOZ_ASSERT(unknownProperties());
+                return;
+            }
+            if (types->canSetDefinite(shape->slot()))
                 types->setDefinite(shape->slot());
         }
 
@@ -3098,7 +3102,11 @@ js::AddClearDefiniteGetterSetterForPrototypeChain(JSContext* cx, ObjectGroup* gr
     RootedObject proto(cx, group->proto().toObjectOrNull());
     while (proto) {
         ObjectGroup* protoGroup = proto->getGroup(cx);
-        if (!protoGroup || protoGroup->unknownProperties())
+        if (!protoGroup) {
+            cx->recoverFromOutOfMemory();
+            return false;
+        }
+        if (protoGroup->unknownProperties())
             return false;
         HeapTypeSet* protoTypes = protoGroup->getProperty(cx, proto, id);
         if (!protoTypes || protoTypes->nonDataProperty() || protoTypes->nonWritableProperty())
@@ -4303,6 +4311,12 @@ JSScript::maybeSweepTypes(AutoClearTypeInferenceStateOnOOM* oom)
     // Remove constraints and references to dead objects from stack type sets.
     for (unsigned i = 0; i < num; i++)
         typeArray[i].sweep(zone(), *oom);
+
+    if (oom->hadOOM()) {
+        // It's possible we OOM'd while copying freeze constraints, so they
+        // need to be regenerated.
+        hasFreezeConstraints_ = false;
+    }
 
     // Update the recompile indexes in any IonScripts still on the script.
     if (hasIonScript())

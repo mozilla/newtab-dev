@@ -146,7 +146,9 @@ var openInspector = Task.async(function*(hostType) {
   let inspector = toolbox.getPanel("inspector");
 
   info("Waiting for the inspector to update");
-  yield inspector.once("inspector-updated");
+  if (inspector._updateProgress) {
+    yield inspector.once("inspector-updated");
+  }
 
   yield registerTestActor(toolbox.target.client);
   let testActor = yield getTestActor(toolbox);
@@ -168,33 +170,17 @@ function getActiveInspector() {
  * visible and ready
  */
 var openInspectorSidebarTab = Task.async(function*(id, hostType) {
-  let {toolbox, inspector} = yield openInspector();
-
-  if (!hasSideBarTab(inspector, id)) {
-    info("Waiting for the " + id + " sidebar to be ready");
-    yield inspector.sidebar.once(id + "-ready");
-  }
+  let {toolbox, inspector, testActor} = yield openInspector();
 
   info("Selecting the " + id + " sidebar");
   inspector.sidebar.select(id);
 
   return {
-    toolbox: toolbox,
-    inspector: inspector,
-    view: inspector.sidebar.getWindowForTab(id)[id]
+    toolbox,
+    inspector,
+    testActor
   };
 });
-
-/**
- * Checks whether the inspector's sidebar corresponding to the given id already
- * exists
- * @param {InspectorPanel}
- * @param {String}
- * @return {Boolean}
- */
-function hasSideBarTab(inspector, id) {
-  return !!inspector.sidebar.getWindowForTab(id);
-}
 
 /**
  * Get the NodeFront for a node that matches a given css selector, via the

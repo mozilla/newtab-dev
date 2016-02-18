@@ -77,6 +77,10 @@ this.TelemetryEnvironment = {
     return getGlobal().unregisterChangeListener(name);
   },
 
+  shutdown: function() {
+    return getGlobal().shutdown();
+  },
+
   // Policy to use when saving preferences. Exported for using them in tests.
   RECORD_PREF_STATE: 1, // Don't record the preference value
   RECORD_PREF_VALUE: 2, // We only record user-set prefs.
@@ -536,6 +540,7 @@ EnvironmentAddonBuilder.prototype = {
           installDay: Utils.millisecondsToDays(installDate.getTime()),
           updateDay: Utils.millisecondsToDays(updateDate.getTime()),
           signedState: addon.signedState,
+          isSystem: addon.isSystem,
         };
 
         if (addon.signedState !== undefined)
@@ -799,6 +804,11 @@ EnvironmentCache.prototype = {
     this._changeListeners.delete(name);
   },
 
+  shutdown: function() {
+    this._log.trace("shutdown");
+    this._shutdown = true;
+  },
+
   /**
    * Only used in tests, set the preferences to watch.
    * @param aPreferences A map of preferences names and their recording policy.
@@ -885,7 +895,7 @@ EnvironmentCache.prototype = {
     Services.obs.removeObserver(this, COMPOSITOR_CREATED_TOPIC);
     try {
       Services.obs.removeObserver(this, DISTRIBUTION_CUSTOMIZATION_COMPLETE_TOPIC);
-    } catch(ex) {};
+    } catch(ex) {}
   },
 
   observe: function (aSubject, aTopic, aData) {
@@ -1088,7 +1098,6 @@ EnvironmentCache.prototype = {
       blocklistEnabled: Preferences.get(PREF_BLOCKLIST_ENABLED, true),
       e10sEnabled: Services.appinfo.browserTabsRemoteAutostart,
       telemetryEnabled: Utils.isTelemetryEnabled,
-      isInOptoutSample: TelemetryController.isInOptoutSample,
       locale: getBrowserLocale(),
       update: {
         channel: updateChannel,
@@ -1190,7 +1199,7 @@ EnvironmentCache.prototype = {
    * not a portable device.
    */
   _getDeviceData: function () {
-    if (["gonk", "android"].indexOf(AppConstants.platform) === -1) {
+    if (!["gonk", "android"].includes(AppConstants.platform)) {
       return null;
     }
 
@@ -1213,7 +1222,7 @@ EnvironmentCache.prototype = {
       locale: getSystemLocale(),
     };
 
-    if (["gonk", "android"].indexOf(AppConstants.platform) !== -1) {
+    if (["gonk", "android"].includes(AppConstants.platform)) {
       data.kernelVersion = getSysinfoProperty("kernel_version", null);
     } else if (AppConstants.platform === "win") {
       let servicePack = getServicePack();
@@ -1262,7 +1271,7 @@ EnvironmentCache.prototype = {
       features: {},
     };
 
-    if (["gonk", "android", "linux"].indexOf(AppConstants.platform) === -1) {
+    if (!["gonk", "android", "linux"].includes(AppConstants.platform)) {
       let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
       try {
         gfxData.monitors = gfxInfo.getMonitors();
@@ -1327,7 +1336,7 @@ EnvironmentCache.prototype = {
 
     if (AppConstants.platform === "win") {
       data.isWow64 = getSysinfoProperty("isWow64", null);
-    } else if (["gonk", "android"].indexOf(AppConstants.platform) !== -1) {
+    } else if (["gonk", "android"].includes(AppConstants.platform)) {
       data.device = this._getDeviceData();
     }
 

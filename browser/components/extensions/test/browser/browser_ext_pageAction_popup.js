@@ -34,34 +34,34 @@ add_task(function* testPageActionPopup() {
         let sendClick;
         let tests = [
           () => {
-            sendClick({ expectEvent: false, expectPopup: "a" });
+            sendClick({expectEvent: false, expectPopup: "a"});
           },
           () => {
-            sendClick({ expectEvent: false, expectPopup: "a" });
+            sendClick({expectEvent: false, expectPopup: "a"});
           },
           () => {
-            browser.pageAction.setPopup({ tabId, popup: "popup-b.html" });
-            sendClick({ expectEvent: false, expectPopup: "b" });
+            browser.pageAction.setPopup({tabId, popup: "popup-b.html"});
+            sendClick({expectEvent: false, expectPopup: "b"});
           },
           () => {
-            sendClick({ expectEvent: false, expectPopup: "b" });
+            sendClick({expectEvent: false, expectPopup: "b"});
           },
           () => {
-            browser.pageAction.setPopup({ tabId, popup: "" });
-            sendClick({ expectEvent: true, expectPopup: null });
+            browser.pageAction.setPopup({tabId, popup: ""});
+            sendClick({expectEvent: true, expectPopup: null});
           },
           () => {
-            sendClick({ expectEvent: true, expectPopup: null });
+            sendClick({expectEvent: true, expectPopup: null});
           },
           () => {
-            browser.pageAction.setPopup({ tabId, popup: "/popup-a.html" });
-            sendClick({ expectEvent: false, expectPopup: "a" });
+            browser.pageAction.setPopup({tabId, popup: "/popup-a.html"});
+            sendClick({expectEvent: false, expectPopup: "a"});
           },
         ];
 
         let expect = {};
-        sendClick = ({ expectEvent, expectPopup }) => {
-          expect = { event: expectEvent, popup: expectPopup };
+        sendClick = ({expectEvent, expectPopup}) => {
+          expect = {event: expectEvent, popup: expectPopup};
           browser.test.sendMessage("send-click");
         };
 
@@ -101,7 +101,7 @@ add_task(function* testPageActionPopup() {
           }
         });
 
-        browser.tabs.query({ active: true, currentWindow: true }, tabs => {
+        browser.tabs.query({active: true, currentWindow: true}, tabs => {
           tabId = tabs[0].id;
 
           browser.pageAction.show(tabId);
@@ -148,47 +148,34 @@ add_task(function* testPageActionPopup() {
 add_task(function* testPageActionSecurity() {
   const URL = "chrome://browser/content/browser.xul";
 
-  let messages = [/Access to restricted URI denied/,
-                  /Access to restricted URI denied/];
+  let apis = ["browser_action", "page_action"];
 
-  let waitForConsole = new Promise(resolve => {
-    // Not necessary in browser-chrome tests, but monitorConsole gripes
-    // if we don't call it.
-    SimpleTest.waitForExplicitFinish();
+  for (let api of apis) {
+    info(`TEST ${api} icon url: ${URL}`);
 
-    SimpleTest.monitorConsole(resolve, messages);
-  });
+    let messages = [/Access to restricted URI denied/];
 
-  let extension = ExtensionTestUtils.loadExtension({
-    manifest: {
-      "browser_action": { "default_popup": URL },
-      "page_action": { "default_popup": URL },
-    },
+    let waitForConsole = new Promise(resolve => {
+      // Not necessary in browser-chrome tests, but monitorConsole gripes
+      // if we don't call it.
+      SimpleTest.waitForExplicitFinish();
 
-    background: function() {
-      browser.tabs.query({ active: true, currentWindow: true }, tabs => {
-        let tabId = tabs[0].id;
+      SimpleTest.monitorConsole(resolve, messages);
+    });
 
-        browser.pageAction.show(tabId);
-        browser.test.sendMessage("ready");
-      });
-    },
-  });
+    let extension = ExtensionTestUtils.loadExtension({
+      manifest: {
+        [api]: {"default_popup": URL},
+      },
+    });
 
-  yield extension.startup();
-  yield extension.awaitMessage("ready");
+    yield Assert.rejects(extension.startup(),
+                         null,
+                         "Manifest rejected");
 
-  yield clickBrowserAction(extension);
-  yield clickPageAction(extension);
-
-  yield extension.unload();
-
-  let pageActionId = makeWidgetId(extension.id) + "-page-action";
-  let node = document.getElementById(pageActionId);
-  is(node, null, "pageAction image removed from document");
-
-  SimpleTest.endMonitorConsole();
-  yield waitForConsole;
+    SimpleTest.endMonitorConsole();
+    yield waitForConsole;
+  }
 });
 
 add_task(forceGC);
