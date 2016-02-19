@@ -11,12 +11,12 @@ Cu.import("resource://gre/modules/Services.jsm");
 // create test engine called MozSearch
 Services.search.addEngineWithDetails("TestSearch1", "", "", "", "GET",
   "http://example.com/?q={searchTerms}");
-Services.search.defaultEngine = Services.search.getEngineByName("TestSearch1");
 Services.search.addEngineWithDetails("TestSearch2", "", "", "", "GET",
   "http://example.com/?q={searchTerms}");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabSearchProvider",
     "resource:///modules/NewTabSearchProvider.jsm");
+Services.search.defaultEngine = Services.search.getEngineByName("TestSearch1");
 
 function run_test() {
   run_next_test();
@@ -41,7 +41,7 @@ add_task(function* test_state() {
   ["name", "placeholder", "iconBuffer"].forEach(engineProps);
 });
 
-/*add_task(function* test_search() {
+add_task(function* test_search() {
   let searchData = {
     engineName: Services.search.currentEngine.name,
     searchString: "test",
@@ -55,12 +55,11 @@ add_task(function* test_state() {
 
   // remove it from the form history
 
-});*/
+});
 
 add_task(function* test_observe() {
   // test that the event emitter is working by setting a new current engine "Google"
   let engineName = "TestSearch2";
-
   NewTabSearchProvider.search.init();
   let promise = new Promise(resolve => {
     NewTabSearchProvider.search.once("browser-search-engine-modified", (name, data) => { // jshint ignore:line
@@ -73,8 +72,8 @@ add_task(function* test_observe() {
   let expectedEngineName = Services.search.currentEngine.name;
 
   // emitter should fire and return the new engine
-  //debugger;
-  let [name, actualEngineName] = yield promise;
+  let [eventName, actualEngineName] = yield promise;
+  is(eventName, "browser-search-engine-modified", `emitter sent the correct event ${eventName}`);
   is(expectedEngineName, actualEngineName, `emitter set the correct engine ${expectedEngineName}`);
   NewTabSearchProvider.search.uninit();
 });

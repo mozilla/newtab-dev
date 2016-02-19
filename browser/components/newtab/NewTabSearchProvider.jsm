@@ -16,7 +16,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
                                   "resource:///modules/ContentSearch.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "EventEmitter", function() {
-  const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
+  const {EventEmitter} = Cu.import("resource://devtools/shared/event-emitter.js", {});
   return EventEmitter;
 });
 
@@ -33,7 +33,12 @@ SearchProvider.prototype = {
         let engine = state.currentEngine;
         this.emit(CURRENT_ENGINE, engine);
       }.bind(this));
-    } else {
+    } else if (data === "engine-default") {
+      // engine-default is always sent with engine-current and isn't
+      // relevant to content searches.
+      return;
+    }
+    else {
       Cu.reportError(new Error("NewTabSearchProvider observing unknown topic"));
     }
   },
