@@ -51,9 +51,6 @@ const VALID_CHANNELS = new Set(["esr", "release", "beta", "aurora", "nightly"]);
 
 const REMOTE_NEWTAB_VERSION = "0";
 
-// TODO: DELETE ME
-Components.utils.import("resource://gre/modules/Console.jsm");
-
 function AboutNewTabService() {
   NewTabPrefsProvider.prefs.on(PREF_REMOTE_ENABLED, this._handleToggleEvent.bind(this));
 
@@ -195,8 +192,6 @@ AboutNewTabService.prototype = {
 
     let url = this.generateRemoteURL();
     if (url !== this._remoteURL) {
-      // TODO: DELETE ME
-      console.log(url);
       this._remoteURL = url;
       Services.obs.notifyObservers(null, "newtab-url-changed",
         this._remoteURL);
