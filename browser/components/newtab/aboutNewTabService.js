@@ -23,8 +23,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Locale",
 
 const LOCAL_NEWTAB_URL = "chrome://browser/content/newtab/newTab.xhtml";
 
-const REMOTE_NEWTAB_URL = "https://content.cdn.mozilla.net/" +
-                              "v%VERSION%/%CHANNEL%/%LOCALE%/index.html";
+const REMOTE_NEWTAB_PATH = "/v%VERSION%/%CHANNEL%/%LOCALE%/index.html";
 
 const ABOUT_URL = "about:newtab";
 
@@ -37,9 +36,23 @@ const PREF_MATCH_OS_LOCALE = "intl.locale.matchOS";
 // The preference that tells what locale the user selected
 const PREF_SELECTED_LOCALE = "general.useragent.locale";
 
+// The preference that tells what remote mode is enabled.
+const PREF_REMOTE_MODE = "browser.newtabpage.remote.mode";
+const MODE_CHANNEL_MAP = {
+  "production": {origin: "https://newtab.cdn.mozilla.net"},
+  "staging": {origin: "https://content-cdn.stage.mozaws.net"},
+  "chrome": {origin: "chrome://browser/content/newtab/newTab.xhtml"},
+  "test": {origin: "https://example.com"},
+  "test2": {origin: "http://mochi.test:8888"},
+  "dev": {origin: "http://localhost"}
+};
+
 const VALID_CHANNELS = new Set(["esr", "release", "beta", "aurora", "nightly"]);
 
 const REMOTE_NEWTAB_VERSION = "0";
+
+// TODO: DELETE ME
+Components.utils.import("resource://gre/modules/Console.jsm");
 
 function AboutNewTabService() {
   NewTabPrefsProvider.prefs.on(PREF_REMOTE_ENABLED, this._handleToggleEvent.bind(this));
@@ -128,10 +141,14 @@ AboutNewTabService.prototype = {
       NewTabPrefsProvider.prefs.on(
         PREF_MATCH_OS_LOCALE,
         this._updateRemoteMaybe.bind(this));
+      NewTabPrefsProvider.prefs.on(
+        PREF_REMOTE_MODE,
+        this._updateRemoteMaybe.bind(this));
       this._remoteEnabled = true;
     } else {
       NewTabPrefsProvider.prefs.off(PREF_SELECTED_LOCALE, this._updateRemoteMaybe);
       NewTabPrefsProvider.prefs.off(PREF_MATCH_OS_LOCALE, this._updateRemoteMaybe);
+      NewTabPrefsProvider.prefs.off(PREF_REMOTE_MODE, this._updateRemoteMaybe);
       this._remoteEnabled = false;
     }
     this._newTabURL = ABOUT_URL;
@@ -139,15 +156,16 @@ AboutNewTabService.prototype = {
   },
 
   /*
-   * Generate a default url based on locale and update channel
+   * Generate a default url based on remote mode, version, locale and update channel
    */
   generateRemoteURL() {
     let releaseName = this.releaseFromUpdateChannel(UpdateUtils.UpdateChannel);
-    let url = REMOTE_NEWTAB_URL
+    let path = REMOTE_NEWTAB_PATH
       .replace("%VERSION%", REMOTE_NEWTAB_VERSION)
       .replace("%LOCALE%", Locale.getLocale())
       .replace("%CHANNEL%", releaseName);
-    return url;
+    let mode = Services.prefs.getCharPref(PREF_REMOTE_MODE, "production");
+    return MODE_CHANNEL_MAP[mode].origin + path;
   },
 
   /*
@@ -177,6 +195,8 @@ AboutNewTabService.prototype = {
 
     let url = this.generateRemoteURL();
     if (url !== this._remoteURL) {
+      // TODO: DELETE ME
+      console.log(url);
       this._remoteURL = url;
       Services.obs.notifyObservers(null, "newtab-url-changed",
         this._remoteURL);
