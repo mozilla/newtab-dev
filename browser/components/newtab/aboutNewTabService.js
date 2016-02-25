@@ -5,7 +5,7 @@
 */
 
 /* globals XPCOMUtils, NewTabPrefsProvider, Services,
-  Locale, UpdateUtils
+  Locale, UpdateUtils, MODE_CHANNEL_MAP
 */
 "use strict";
 
@@ -20,6 +20,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
                                   "resource:///modules/NewTabPrefsProvider.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Locale",
                                   "resource://gre/modules/Locale.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "MODE_CHANNEL_MAP",
+                                  "resource:///modules/NewTabRemoteResources.jsm");
 
 const LOCAL_NEWTAB_URL = "chrome://browser/content/newtab/newTab.xhtml";
 
@@ -38,13 +40,6 @@ const PREF_SELECTED_LOCALE = "general.useragent.locale";
 
 // The preference that tells what remote mode is enabled.
 const PREF_REMOTE_MODE = "browser.newtabpage.remote.mode";
-const MODE_CHANNEL_MAP = {
-  "production": {origin: "https://content.cdn.mozilla.net"},
-  "staging": {origin: "https://content-cdn.stage.mozaws.net"},
-  "test": {origin: "https://example.com"},
-  "test2": {origin: "http://mochi.test:8888"},
-  "dev": {origin: "http://localhost"}
-};
 
 const VALID_CHANNELS = new Set(["esr", "release", "beta", "aurora", "nightly"]);
 
