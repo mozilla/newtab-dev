@@ -7,12 +7,24 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabWebChannel",
                                   "resource:///modules/NewTabWebChannel.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabMessages",
+                                  "resource:///modules/NewTabMessages.jsm");
 
 const TEST_URL = "https://example.com/browser/browser/components/newtab/tests/browser/newtabwebchannel_basic.html";
 const TEST_URL_2 = "http://mochi.test:8888/browser/browser/components/newtab/tests/browser/newtabwebchannel_basic.html";
 
+function setup(mode = "test") {
+  NewTabMessages.uninit();
+  NewTabWebChannel.uninit();
+  Preferences.set("browser.newtabpage.remote.mode", mode);
+  Preferences.set("browser.newtabpage.remote", true);
+  NewTabWebChannel.init();
+  NewTabMessages.init();
+}
+
 function cleanup() {
-  NewTabWebChannel.tearDownState();
+  NewTabMessages.uninit();
+  NewTabWebChannel.uninit();
   Preferences.set("browser.newtabpage.remote", false);
   Preferences.set("browser.newtabpage.remote.mode", "production");
 }
@@ -22,8 +34,7 @@ registerCleanupFunction(cleanup);
  * Tests flow of messages from newtab to chrome and chrome to newtab
  */
 add_task(function* open_webchannel_basic() {
-  Preferences.set("browser.newtabpage.remote.mode", "test");
-  Preferences.set("browser.newtabpage.remote", true);
+  setup();
 
   let tabOptions = {
     gBrowser,
@@ -72,8 +83,7 @@ add_task(function* open_webchannel_basic() {
  * Tests message broadcast reaches all open newtab pages
  */
 add_task(function* webchannel_broadcast() {
-  Preferences.set("browser.newtabpage.remote.mode", "test");
-  Preferences.set("browser.newtabpage.remote", true);
+  setup();
 
   let countingMessagePromise = new Promise(resolve => {
     let count = 0;
@@ -133,8 +143,7 @@ add_task(function* webchannel_broadcast() {
  * Tests switching modes
  */
 add_task(function* webchannel_switch() {
-  Preferences.set("browser.newtabpage.remote.mode", "test");
-  Preferences.set("browser.newtabpage.remote", true);
+  setup();
 
   function newMessagePromise() {
     return new Promise(resolve => {
@@ -195,8 +204,7 @@ add_task(function* webchannel_switch() {
 });
 
 add_task(function* open_webchannel_reload() {
-  Preferences.set("browser.newtabpage.remote.mode", "test");
-  Preferences.set("browser.newtabpage.remote", true);
+  setup();
 
   let tabOptions = {
     gBrowser,
