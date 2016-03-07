@@ -115,3 +115,5 @@ testing/talos/lib/
 testing/talos/talos/tests/tp5n.zip
 testing/talos/talos/tests/tp5n
 testing/talos/talos/tests/devtools/damp.manifest.develop
+
+gen_branch_name.py
