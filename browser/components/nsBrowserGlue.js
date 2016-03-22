@@ -30,6 +30,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabPrefsProvider",
                                   "resource:///modules/NewTabPrefsProvider.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "NewTabSearchProvider",
+                                  "resource:///modules/NewTabSearchProvider.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabWebChannel",
                                   "resource:///modules/NewTabWebChannel.jsm");
 
@@ -760,6 +763,7 @@ BrowserGlue.prototype = {
     AboutNewTab.init();
 
     NewTabPrefsProvider.prefs.init();
+    NewTabSearchProvider.search.init();
     NewTabWebChannel.init();
     NewTabMessages.init();
 
@@ -1067,6 +1071,7 @@ BrowserGlue.prototype = {
 
     SelfSupportBackend.uninit();
     NewTabPrefsProvider.prefs.uninit();
+    NewTabSearchProvider.search.uninit();
     NewTabWebChannel.uninit();
     NewTabMessages.uninit();
 
