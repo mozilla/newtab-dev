@@ -469,7 +469,7 @@ index 0000000..2d1ed98
 +      }
 +      if (!plausible) {
 +        fprintf(stderr, "ExceptionTableInfo: implausible EXIDX last entry size "
-+                "%d, using 1 instead.", (int32_t)(text_last_svma_ - addr));
++                "%d, using 1 instead.\n", (int32_t)(text_last_svma_ - addr));
 +      }
 +    }
 +
@@ -484,22 +484,22 @@ index 0000000..2d1ed98
 +      // Couldn't extract the unwind info, for some reason.  Move on.
 +      switch (res) {
 +        case ExInBufOverflow:
-+          fprintf(stderr, "ExtabEntryExtract: .exidx/.extab section overrun");
++          fprintf(stderr, "ExtabEntryExtract: .exidx/.extab section overrun\n");
 +          break;
 +        case ExOutBufOverflow:
-+          fprintf(stderr, "ExtabEntryExtract: bytecode buffer overflow");
++          fprintf(stderr, "ExtabEntryExtract: bytecode buffer overflow\n");
 +          break;
 +        case ExCantUnwind:
-+          fprintf(stderr, "ExtabEntryExtract: function is marked CANT_UNWIND");
++          fprintf(stderr, "ExtabEntryExtract: function is marked CANT_UNWIND\n");
 +          break;
 +        case ExCantRepresent:
-+          fprintf(stderr, "ExtabEntryExtract: bytecode can't be represented");
++          fprintf(stderr, "ExtabEntryExtract: bytecode can't be represented\n");
 +          break;
 +        case ExInvalid:
-+          fprintf(stderr, "ExtabEntryExtract: index table entry is invalid");
++          fprintf(stderr, "ExtabEntryExtract: index table entry is invalid\n");
 +          break;
 +        default:
-+          fprintf(stderr, "ExtabEntryExtract: unknown error: %d", (int)res);
++          fprintf(stderr, "ExtabEntryExtract: unknown error: %d\n", (int)res);
 +          break;
 +      }
 +      continue;
